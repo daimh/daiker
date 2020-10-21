@@ -2,7 +2,7 @@
 
 Unlike Docker, daiker doesn't need any special privilege.
 
-Unlike Singularity, daiker is a full machine level virtualizatione just like a real machine. You can even run Windows on it
+Unlike Singularity, daiker is a full machine level virtualization just like a real machine. You can even run Windows on it.
 
 ## Prerequisites
 ```
@@ -17,7 +17,7 @@ $ chmod +x daiker
 $ mv daiker ~/bin/ # or move to any directory in your PATH
 ```
 
-## Test steps, [Video](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
+## Test steps. [Youtube Demo](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
 
 1. build a base image, here we use Alpine Linux as an example
 ```
@@ -34,7 +34,10 @@ $ daiker run -b alpine-base.img test2.img
 4. boot the new machine if it was poweroff
 ```
 $ daiker run test1.img  
-$ daiker run -T 22 test1.img #forward a random port on physical machine to port 22 on the virtual machine
+```
+or forward a random port on the physical machine to port 22 on the virtual machine
+```
+$ daiker run -T 22 test1.img 
 ```
 
 ## Help
@@ -43,8 +46,8 @@ $ daiker -h
 ```
 append '-v' to any sub-commands to check out the backend qemu commands
 
-## Roadmp
-One more interesting feature is planned indeed, please check back later.
+## Roadmap
+A few more interesting features are planned, please check back later.
 
 ## Contribute
 

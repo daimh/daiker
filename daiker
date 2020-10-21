@@ -45,6 +45,9 @@ COPYRIGHT
 	This is free software: you are free to change and redistribute it.
 	There is NO WARRANTY, to the extent permitted by law."
 }
+function is_not_base_image {
+	qemu-img info $1 | grep -q "backing file:"
+}
 
 if [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ]
 then
@@ -67,7 +70,7 @@ elif [ "$COMMAND" = "convert" ]
 then
 	OPTS=$(getopt -o "hv" --long "help,verbose" -n daiker -- "$@")
 else
-	helpme "ERR-002: contact developer"
+	helpme "ERR-002: unsupported daiker command"
 fi
 [ $? -ne 0 ] && helpme "ERR-001: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
 CPU=2
@@ -128,7 +131,7 @@ done
 
 FILE=$1
 [ ! -z "$FILE" ] || helpme "ERR-003: missing FILE"
-[ "$VNC" != "yes" -o "$DISPLAY" != "" ] || helpme "ERR-004: No DISPLAY detected, are you running X?"
+[ "$VNC" = "yes" -o "$DISPLAY" != "" ] || helpme "ERR-004: No DISPLAY detected, are you running X?"
 
 NETDEV="user,id=n0"
 if [ -n "$TCP_PORTS" ]
@@ -180,12 +183,13 @@ then
 	then
 		[ -f $BASE ] || helpme "ERR-009: $BASE does not exist"
 		! fuser $BASE || helpme "ERR-018: $BASE is in use by the process above"
+		! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
 		[ ! -f $FILE ] || helpme "ERR-010: $FILE already exists, but -b is specified"
 		qemu-img create -f qcow2 -b $BASE -F qcow2 $FILE
 	else
 		[ -f $FILE ] || helpme "ERR-011: $FILE does not exist"
 		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"
-		qemu-img info $FILE | grep -q "backing file:" || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to clone a new image"
+		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to clone a new image"
 	fi
 else 
 	help_and_copyright 
