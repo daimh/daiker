@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+set -e
+function helpme() {
+	if [[ "$(file -b $(readlink -f /proc/$$/fd/255) )" != "Bourne-Again shell script, "* && "$(file -b $(readlink -f /proc/$$/fd/255) )" != *" bash script, "* ]]
+	then
+		echo "ERR-000: exec file doesn't report correct type, contact developer"
+		exit 1
+	fi
+	if [[ "$1" = "" ]]
+	then
+		cat /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -e "	-\|^#" | grep -- "$(echo $OPT_SHORT | sed -e "s/://g" | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$COMMAND\t\\\|^#[A-Z]/" )" | sed -e "s/^#$COMMAND\t/\t/; s/^#//"
+	else
+		echo -e "$1"
+	fi
+	exit 1
+}
+function get_free_ports {
+	[ "$1" != "t" -a "$1" != "u" ] && helpme "ERR-015: contact developer"
+	LC_ALL=C join -v 1 <(seq $2 $3) <(netstat -ln4$1 | awk '{print $4}' | cut -d : -f 2 |sort) | head -n $4
+}
+function get_hostfwd {
+	[ -z "$2" ] && return
+	if [ "$1" = "t" ]
+	then
+		PROTO=tcp
+	elif [ "$1" = "u" ]
+	then
+		PROTO=udp
+	fi
+	COUNT=$(echo "$2" | sed -e "s/,/\n/g" | wc -l)
+	paste <(get_free_ports $1 40000 50000 $COUNT) <(echo "$2" | sed -e "s/,/\n/g") | awk -v PROTO=$PROTO '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", PROTO, $1, $2}' 
+}
+function help_and_copyright {
+	helpme "Usage: daiker <command> [-h] [<args>]
+commands:
+	build
+	run	
+	convert
+
+VERSION
+	20201021
+COPYRIGHT
+	Developed by Manhong Dai
+	Copyright © 2020 University of Michigan. License GPLv3+: GNU GPL version 3 or later
+	This is free software: you are free to change and redistribute it.
+	There is NO WARRANTY, to the extent permitted by law."
+}
+
+if [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ]
+then
+	help_and_copyright 
+fi
+
+COMMAND=$1
+OPT_SHORT="hvc:r:i:T:U:V"
+OPT_LONG="help,verbose,cpu:,ram:,iso:,tcp-ports:,udp-ports:use-vnc"
+shift || help_and_copyright 
+if [ "$COMMAND" = "build" ]
+then
+	OPT_SHORT="${OPT_SHORT}H:"
+	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,hda-size:" -n daiker -- "$@")
+elif [ "$COMMAND" = "run" ]
+then
+	OPT_SHORT="${OPT_SHORT}b:"
+	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,base:" -n daiker -- "$@")
+elif [ "$COMMAND" = "convert" ]
+then
+	OPTS=$(getopt -o "hv" --long "help,verbose" -n daiker -- "$@")
+else
+	helpme "ERR-002: contact developer"
+fi
+[ $? -ne 0 ] && helpme "ERR-001: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
+CPU=2
+RAM=4
+HDA=50
+VNC=no
+eval set -- "$OPTS"
+while :
+do
+	case "$1" in
+#HELPME_START
+#NAME
+#build	daiker build - build a base image
+#run	daiker run - run a image
+#convert	daiker convert - convert a image to a 
+#SYNOPSIS
+#build	daiker build [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] FILE
+#run	daiker run [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] [-b | --base]FILE
+#convert	daiker convert FILE
+#OPTIONS
+		-h | --help)
+			helpme ;;
+		-v | --verbose)
+			set -x 
+			shift ;;
+		-c | --cpu)		#number of CPUs, default 2
+			CPU=($2)
+			shift 2 ;;
+		-r | --ram)		#memory size, in GB, default 4
+			RAM=($2)
+			shift 2 ;;
+		-i | --iso)		#ISO file, used as cdrom
+			ISO=$2
+			shift 2 ;;
+		-T | --tcp-ports)	#a comma-seperated list of guest tcp ports to be forwarded to
+			TCP_PORTS=($2)
+			shift 2 ;;
+		-U | --udp-ports)	#a comma-seperated list of guest udp ports to be forwarded to
+			UDP_PORTS=($2)
+			shift 2 ;;
+		-V | --use-VNC)	#use VNC instead of your X window
+			VNC=yes
+			shift ;;
+		-b | --base)	#The base image file that a new VM is created from
+			BASE=$2
+			shift 2 ;;
+		-H | --hda-size)	#hard drive size, in GB, default 50
+			HDA=($2)
+			shift 2 ;;
+#HELPME_END
+		--)			
+			shift
+			break ;;
+		*)
+			break ;;
+	esac
+done
+
+FILE=$1
+[ ! -z "$FILE" ] || helpme "ERR-003: missing FILE"
+[ "$VNC" != "yes" -o "$DISPLAY" != "" ] || helpme "ERR-004: No DISPLAY detected, are you running X?"
+
+NETDEV="user,id=n0"
+if [ -n "$TCP_PORTS" ]
+then
+	HOSTFWD=$(get_hostfwd t $TCP_PORTS) 
+	[ -n "$HOSTFWD" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
+	echo "TCP ports: $HOSTFWD"
+	NETDEV="$NETDEV,$HOSTFWD"
+fi
+if [ -n "$UDP_PORTS" ]
+then
+	HOSTFWD=$(get_hostfwd u $UDP_PORTS) 
+	[ -n "$HOSTFWD" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
+	echo "UDP ports: $HOSTFWD"
+	NETDEV="$NETDEV,$HOSTFWD"
+fi
+
+if [ "$VNC" = "no" ]
+then
+	QEMU_DISPLAY="gtk -vga std"
+else
+	VNC=$(get_free_ports t 5900 6000 1)
+	[ -z "$VNC" ] && help "ERR-014: no available vnc port"
+	((VNC=VNC-5900))
+	echo "VNC=$VNC" >> $NAME/mnt/mbni-run-vm.info
+	QEMU_DISPLAY="vnc=:$VNC"
+fi
+if [ "$COMMAND" = "convert" ]
+then
+	read -p "Converting \"$FILE\" to base image:, type \"$FILE\" to confirm: " ANS
+	[ "$ANS" == "$FILE" ] || helpme "Quitting"
+	qemu-img rebase -F qcow2 -f qcow2 -b "" $FILE
+	exit
+elif [ "$COMMAND" = "build" ]
+then
+	[ ! -f $FILE ] || helpme "ERR-005: $FILE exists"
+	[ -f "$ISO" ] || helpme "ERR-006: missing -i"
+	[ ! -z "$HDA" ] || helpme "ERR-007: missing -H $HDA"
+	qemu-img create -f qcow2 $FILE ${HDA}G
+	CDROM="-cdrom $ISO"
+elif [ "$COMMAND" = "run" ]
+then
+	if [ -n "$ISO" ] 
+	then
+		[ -f "$ISO" ] || helpme "ERR-008: $ISO doesn't exists"
+		CDROM="-cdrom $ISO"
+	fi
+	if [ -n "$BASE" ]
+	then
+		[ -f $BASE ] || helpme "ERR-009: $BASE does not exist"
+		! fuser $BASE || helpme "ERR-018: $BASE is in use by the process above"
+		[ ! -f $FILE ] || helpme "ERR-010: $FILE already exists, but -b is specified"
+		qemu-img create -f qcow2 -b $BASE -F qcow2 $FILE
+	else
+		[ -f $FILE ] || helpme "ERR-011: $FILE does not exist"
+		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"
+		qemu-img info $FILE | grep -q "backing file:" || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to clone a new image"
+	fi
+else 
+	help_and_copyright 
+fi
+qemu-system-x86_64 -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -netdev $NETDEV -device e1000,netdev=n0 -display $QEMU_DISPLAY
