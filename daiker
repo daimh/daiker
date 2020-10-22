@@ -92,40 +92,40 @@ do
 		-v | --verbose)
 			set -x
 			shift ;;
-		-c | --cpu)	#number of CPUs, default 2
+		-c | --cpu)	#=CPU, number of cpus, default 2
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-021: invalid number: -c $2"
-			CPU=($2)
+			CPU=$2
 			shift 2 ;;
-		-r | --ram)	#memory size, in GB, default 4
+		-r | --ram)	#=RAM, memory size, in GB, default 4
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-022: invalid number: -r $2"
-			RAM=($2)
+			RAM=$2
 			shift 2 ;;
-		-i | --iso)	#ISO file, used as cdrom
+		-i | --iso)	#=ISO file, used as cdrom
 			ISO=$2
 			shift 2 ;;
 		-P | --private-net)	#add the second NIC to share the same private network traffic with other virtual machines
 			PRIVATENET=yes
 			shift 1 ;;
-		-M | --mount)	#allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
+		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MOUNTDIRS+=($2)
 			shift 2 ;;
-		-T | --tcp-ports)	#one virtual machine tcp port to be forwarded to from the physical host
+		-T | --tcp-ports)	#=PORT, one virtual machine tcp port to be forwarded to from the physical host
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
 			TCPPORTS+=($2)
 			shift 2 ;;
-		-U | --udp-ports)	#one virtual machine udp ports to be forwarded to from the physical host
+		-U | --udp-ports)	#=PORT, one virtual machine udp ports to be forwarded to from the physical host
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
 			UDPPORTS+=($2)
 			shift 2 ;;
 		-V | --use-VNC)	#use VNC instead of your X window
 			VNC=yes
 			shift ;;
-		-b | --base)	#The base image file that a new virtual machine is created from
+		-b | --base)	#=BASE, The base image file that a new virtual machine is created from
 			BASE=$2
 			shift 2 ;;
-		-H | --hda-size)	#hard drive size, in GB, default 50
+		-H | --hda-size)	#=SIZE, hard drive size, in GB, default 50
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-025: invalid number: -H $2"
-			HDA=($2)
+			HDA=$2
 			shift 2 ;;
 #HELPME_END
 		--)
@@ -210,4 +210,4 @@ then
 else
 	help_and_copyright
 fi
-qemu-system-x86_64 -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY
+qemu-system-x86_64 -cpu host -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY
