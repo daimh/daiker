@@ -17,27 +17,48 @@ $ chmod +x daiker
 $ mv daiker ~/bin/ # or move to any directory in your PATH
 ```
 
-## Test steps. [Youtube Demo](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
+## Test steps. [Videos](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
 
 1. build a base image, here we use Alpine Linux as an example
 ```
 $ wget http://dl-cdn.alpinelinux.org/alpine/v3.12/releases/x86_64/alpine-standard-3.12.1-x86_64.iso
 $ daiker build -i alpine-standard-3.12.1-x86_64.iso alpine-base.img 
+# #inside the virtual machine
+# setup-alpine
+# poweroff
 ```
-2. inside the new machine, type root to login, run 'setup-alpine' to install Alpine, then run 'poweroff'
-
-3. create a few new virtual machines
+2. create a few new virtual machines
 ```
 $ daiker run -b alpine-base.img test1.img 
 $ daiker run -b alpine-base.img test2.img 
 ```
-4. boot the new machine if it was poweroff
+3. boot the new machine if it was poweroff
 ```
-$ daiker run test1.img  
+$ daiker run test1.img 
 ```
-or forward a random port on the physical machine to port 22 on the virtual machine
+
+## Advanced usage
+* allow outside to access SSH service on a virtual machine. [Video](https://youtu.be/lhzlTCWviHo)
 ```
-$ daiker run -T 22 test1.img 
+$ daiker run -T 22 test1.img
+```
+* mount a directory on the physical host to the virtual machine
+```
+$ daiker run -M /tmp test1.img 
+# #inside the virtual machine
+# mount -t 9p daiker-0 /mnt
+```
+* build a cluster of virtual machines that can talk to each other. [Video](https://youtu.be/nuahSihAbno)
+```
+$ daiker run -P test1.img
+$ daiker run -P test2.img 
+# #inside virtual machine test1
+# ip l set eth1 up
+# ip a a 192.168.8.1/24 dev eth1
+# ping 192.168.8.2
+# #inside virtual machine test2
+# ip l set eth1 up
+# ip a a 192.168.8.2/24 dev eth1
 ```
 
 ## Help
@@ -45,9 +66,6 @@ $ daiker run -T 22 test1.img
 $ daiker -h
 ```
 append '-v' to any sub-commands to check out the backend qemu commands
-
-## Roadmap
-A few more interesting features are planned, please check back later.
 
 ## Contribute
 

@@ -1,34 +1,32 @@
 #!/usr/bin/env bash
 set -e
+trap "exit 1" TERM
+export TOP_PID=$$
 function helpme() {
 	if [[ "$(file -b $(readlink -f /proc/$$/fd/255) )" != "Bourne-Again shell script, "* && "$(file -b $(readlink -f /proc/$$/fd/255) )" != *" bash script, "* ]]
 	then
-		echo "ERR-000: exec file doesn't report correct type, contact developer"
-		exit 1
+		echo "ERR-000: command daiker is not bash shell script, please run 'which daiker' to check it"
+		kill -s TERM $TOP_PID
 	fi
 	if [[ "$1" = "" ]]
 	then
-		cat /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -e "	-\|^#" | grep -- "$(echo $OPT_SHORT | sed -e "s/://g" | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$COMMAND\t\\\|^#[A-Z]/" )" | sed -e "s/^#$COMMAND\t/\t/; s/^#//"
+		cat /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -e "	-\|^#" | grep -- "$(echo $OPT_SHORT | sed -e "s/://g" | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$COMMAND\t\\\|^#[A-Z]/" )" | sed -e "s/^#$COMMAND\t/\t/; s/^#//" 1>&2
 	else
-		echo -e "$1"
+		echo -e "$1" 1>&2
 	fi
-	exit 1
+	kill -s TERM $TOP_PID
 }
 function get_free_ports {
-	[ "$1" != "t" -a "$1" != "u" ] && helpme "ERR-015: contact developer"
-	LC_ALL=C join -v 1 <(seq $2 $3) <(netstat -ln4$1 | awk '{print $4}' | cut -d : -f 2 |sort) | head -n $4
+	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
+	export LC_ALL=C
+	join -v 1 <(seq $2 $3) <(netstat -ln4${1:0:1} | grep ^$1 | awk '{print $4}' | cut -d : -f 2 |sort) | head -n $4
 }
 function get_hostfwd {
-	[ -z "$2" ] && return
-	if [ "$1" = "t" ]
-	then
-		PROTO=tcp
-	elif [ "$1" = "u" ]
-	then
-		PROTO=udp
-	fi
-	COUNT=$(echo "$2" | sed -e "s/,/\n/g" | wc -l)
-	paste <(get_free_ports $1 40000 50000 $COUNT) <(echo "$2" | sed -e "s/,/\n/g") | awk -v PROTO=$PROTO '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", PROTO, $1, $2}' 
+	PROTO=$1
+	shift
+	[ -z "$1" ] && return
+	COUNT=$(echo "$@" | sed -e "s/ /\n/g" | wc -l)
+	paste <(get_free_ports $PROTO 40000 50000 $COUNT) <(echo "$@" | sed -e "s/ /\n/g") | awk -v PROTO=$PROTO '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", PROTO, $1, $2}'
 }
 function help_and_copyright {
 	helpme "Usage: daiker <command> [-h] [<args>]
@@ -38,9 +36,9 @@ commands:
 	convert
 
 VERSION
-	20201021
+	20201022
 COPYRIGHT
-	Developed by Manhong Dai
+	Developed by Manhong Dai, https://github.com/daimh/daiker
 	Copyright © 2020 University of Michigan. License GPLv3+: GNU GPL version 3 or later
 	This is free software: you are free to change and redistribute it.
 	There is NO WARRANTY, to the extent permitted by law."
@@ -48,16 +46,11 @@ COPYRIGHT
 function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
-
-if [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ]
-then
-	help_and_copyright 
-fi
-
+[ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ] && help_and_copyright
 COMMAND=$1
-OPT_SHORT="hvc:r:i:T:U:V"
-OPT_LONG="help,verbose,cpu:,ram:,iso:,tcp-ports:,udp-ports:use-vnc"
-shift || help_and_copyright 
+OPT_SHORT="hvc:r:i:PM:T:U:V"
+OPT_LONG="help,verbose,cpu:,ram:,iso:,private-net,mount:,tcp-ports:,udp-ports:use-vnc"
+shift || help_and_copyright
 if [ "$COMMAND" = "build" ]
 then
 	OPT_SHORT="${OPT_SHORT}H:"
@@ -70,13 +63,16 @@ elif [ "$COMMAND" = "convert" ]
 then
 	OPTS=$(getopt -o "hv" --long "help,verbose" -n daiker -- "$@")
 else
-	helpme "ERR-002: unsupported daiker command"
+	helpme "ERR-001: unsupported daiker command"
 fi
-[ $? -ne 0 ] && helpme "ERR-001: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
 CPU=2
 RAM=4
 HDA=50
 VNC=no
+PRIVATENET=no
+MOUNTDIRS=()
+TCPPORTS=()
+UDPPORTS=()
 eval set -- "$OPTS"
 while :
 do
@@ -85,75 +81,95 @@ do
 #NAME
 #build	daiker build - build a base image
 #run	daiker run - run a image
-#convert	daiker convert - convert a image to a 
+#convert	daiker convert - convert a image to a
 #SYNOPSIS
 #build	daiker build [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] FILE
-#run	daiker run [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] [-b | --base]FILE
+#run	daiker run [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] [-b | --base] FILE
 #convert	daiker convert FILE
 #OPTIONS
 		-h | --help)
 			helpme ;;
 		-v | --verbose)
-			set -x 
+			set -x
 			shift ;;
-		-c | --cpu)		#number of CPUs, default 2
+		-c | --cpu)	#number of CPUs, default 2
+			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-021: invalid number: -c $2"
 			CPU=($2)
 			shift 2 ;;
-		-r | --ram)		#memory size, in GB, default 4
+		-r | --ram)	#memory size, in GB, default 4
+			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-022: invalid number: -r $2"
 			RAM=($2)
 			shift 2 ;;
-		-i | --iso)		#ISO file, used as cdrom
+		-i | --iso)	#ISO file, used as cdrom
 			ISO=$2
 			shift 2 ;;
-		-T | --tcp-ports)	#a comma-seperated list of guest tcp ports to be forwarded to
-			TCP_PORTS=($2)
+		-P | --private-net)	#add the second NIC to share the same private network traffic with other virtual machines
+			PRIVATENET=yes
+			shift 1 ;;
+		-M | --mount)	#allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
+			MOUNTDIRS+=($2)
 			shift 2 ;;
-		-U | --udp-ports)	#a comma-seperated list of guest udp ports to be forwarded to
-			UDP_PORTS=($2)
+		-T | --tcp-ports)	#one virtual machine tcp port to be forwarded to from the physical host
+			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
+			TCPPORTS+=($2)
+			shift 2 ;;
+		-U | --udp-ports)	#one virtual machine udp ports to be forwarded to from the physical host
+			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
+			UDPPORTS+=($2)
 			shift 2 ;;
 		-V | --use-VNC)	#use VNC instead of your X window
 			VNC=yes
 			shift ;;
-		-b | --base)	#The base image file that a new VM is created from
+		-b | --base)	#The base image file that a new virtual machine is created from
 			BASE=$2
 			shift 2 ;;
 		-H | --hda-size)	#hard drive size, in GB, default 50
+			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-025: invalid number: -H $2"
 			HDA=($2)
 			shift 2 ;;
 #HELPME_END
-		--)			
+		--)
 			shift
 			break ;;
 		*)
 			break ;;
 	esac
 done
-
+[ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
 FILE=$1
 [ ! -z "$FILE" ] || helpme "ERR-003: missing FILE"
-[ "$VNC" = "yes" -o "$DISPLAY" != "" ] || helpme "ERR-004: No DISPLAY detected, are you running X?"
-
-NETDEV="user,id=n0"
-if [ -n "$TCP_PORTS" ]
+[ "$VNC" = "yes" -o "$DISPLAY" != "" ] || helpme "ERR-004: DISPLAY is not set, are you running X?"
+MOUNTS=""
+for ((IDX=0; IDX<${#MOUNTDIRS[@]}; IDX++))
+do
+	[ -d ${MOUNTDIRS[$IDX]} ] || helpme "ERR-020: no such dir ${MOUNTDIRS[$IDX]}"
+	MOUNTS="$MOUNTS -virtfs local,id=daiker-$IDX,path=${MOUNTDIRS[$IDX]},security_model=none,mount_tag=daiker-$IDX"
+done
+if [ "$PRIVATENET" = "yes" ]
 then
-	HOSTFWD=$(get_hostfwd t $TCP_PORTS) 
+	MAC=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
+	PRVNET="-device e1000,netdev=n1,mac=$MAC -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
+fi
+PUBNET="user,id=n0"
+if [[ ${#TCPPORTS[@]} -gt 0 ]]
+then
+	HOSTFWD=$( get_hostfwd tcp ${TCPPORTS[@]} )
 	[ -n "$HOSTFWD" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
 	echo "TCP ports: $HOSTFWD"
-	NETDEV="$NETDEV,$HOSTFWD"
+	PUBNET="$PUBNET,$HOSTFWD"
 fi
-if [ -n "$UDP_PORTS" ]
+if [[ ${#UDPPORTS[@]} -gt 0 ]]
 then
-	HOSTFWD=$(get_hostfwd u $UDP_PORTS) 
+	HOSTFWD=$( get_hostfwd udp ${UDPPORTS[@]} )
 	[ -n "$HOSTFWD" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
 	echo "UDP ports: $HOSTFWD"
-	NETDEV="$NETDEV,$HOSTFWD"
+	PUBNET="$PUBNET,$HOSTFWD"
 fi
-
 if [ "$VNC" = "no" ]
 then
 	QEMU_DISPLAY="gtk -vga std"
 else
-	VNC=$(get_free_ports t 5900 6000 1)
+	VNC=$(get_free_ports tcp 5900 6000 1)
 	[ -z "$VNC" ] && help "ERR-014: no available vnc port"
 	((VNC=VNC-5900))
 	echo "VNC=$VNC" >> $NAME/mnt/mbni-run-vm.info
@@ -168,30 +184,30 @@ then
 elif [ "$COMMAND" = "build" ]
 then
 	[ ! -f $FILE ] || helpme "ERR-005: $FILE exists"
-	[ -f "$ISO" ] || helpme "ERR-006: missing -i"
+	[ -f "$ISO" ] || helpme "ERR-006: no such file $ISO"
 	[ ! -z "$HDA" ] || helpme "ERR-007: missing -H $HDA"
-	qemu-img create -f qcow2 $FILE ${HDA}G
+	qemu-img create -qf qcow2 $FILE ${HDA}G
 	CDROM="-cdrom $ISO"
 elif [ "$COMMAND" = "run" ]
 then
-	if [ -n "$ISO" ] 
+	if [ -n "$ISO" ]
 	then
-		[ -f "$ISO" ] || helpme "ERR-008: $ISO doesn't exists"
+		[ -f "$ISO" ] || helpme "ERR-008: no such file $ISO"
 		CDROM="-cdrom $ISO"
 	fi
 	if [ -n "$BASE" ]
 	then
-		[ -f $BASE ] || helpme "ERR-009: $BASE does not exist"
+		[ -f $BASE ] || helpme "ERR-009: no such file $BASE"
 		! fuser $BASE || helpme "ERR-018: $BASE is in use by the process above"
 		! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
-		[ ! -f $FILE ] || helpme "ERR-010: $FILE already exists, but -b is specified"
-		qemu-img create -f qcow2 -b $BASE -F qcow2 $FILE
+		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, remove '-b $BASE' please"
+		qemu-img create -qf qcow2 -b $BASE -F qcow2 $FILE
 	else
-		[ -f $FILE ] || helpme "ERR-011: $FILE does not exist"
+		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"
 		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"
 		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to clone a new image"
 	fi
-else 
-	help_and_copyright 
+else
+	help_and_copyright
 fi
-qemu-system-x86_64 -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -netdev $NETDEV -device e1000,netdev=n0 -display $QEMU_DISPLAY
+qemu-system-x86_64 -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY
