@@ -3,11 +3,6 @@ set -e
 trap "exit 1" TERM
 export TOP_PID=$$
 function helpme() {
-	if [[ "$(file -b $(readlink -f /proc/$$/fd/255) )" != "Bourne-Again shell script, "* && "$(file -b $(readlink -f /proc/$$/fd/255) )" != *" bash script, "* ]]
-	then
-		echo "ERR-000: command daiker is not bash shell script, please run 'which daiker' to check it"
-		kill -s TERM $TOP_PID
-	fi
 	if [[ "$1" = "" ]]
 	then
 		cat /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -e "	-\|^#" | grep -- "$(echo $OPT_SHORT | sed -e "s/://g" | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$COMMAND\t\\\|^#[A-Z]/" )" | sed -e "s/^#$COMMAND\t/\t/; s/^#//" 1>&2
