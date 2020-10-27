@@ -172,7 +172,8 @@ else
 fi
 if [ "$COMMAND" = "convert" ]
 then
-	read -p "Converting \"$FILE\" to base image:, type \"$FILE\" to confirm: " ANS
+	is_not_base_image $FILE || helpme "ERR-026: $FILE is already a base image"
+	read -p "convert \"$FILE\" to base image? type \"$FILE\" to confirm: " ANS
 	[ "$ANS" == "$FILE" ] || helpme "Quitting"
 	qemu-img rebase -F qcow2 -f qcow2 -b "" $FILE
 	exit
@@ -193,9 +194,8 @@ then
 	if [ -n "$BASE" ]
 	then
 		[ -f $BASE ] || helpme "ERR-009: no such file $BASE"
-		! fuser $BASE || helpme "ERR-018: $BASE is in use by the process above"
 		! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
-		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, remove '-b $BASE' please"
+		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, don't use '-b $BASE' in your command, or delete '$FILE' to create a new image."
 		qemu-img create -qf qcow2 -b $BASE -F qcow2 $FILE
 	else
 		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"
