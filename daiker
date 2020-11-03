@@ -31,7 +31,7 @@ commands:
 	convert
 
 VERSION
-	20201022
+	20201103
 COPYRIGHT
 	Developed by Manhong Dai, https://github.com/daimh/daiker
 	Copyright © 2020 University of Michigan. License GPLv3+: GNU GPL version 3 or later
@@ -56,7 +56,9 @@ then
 	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,base:" -n daiker -- "$@")
 elif [ "$COMMAND" = "convert" ]
 then
-	OPTS=$(getopt -o "hv" --long "help,verbose" -n daiker -- "$@")
+	OPT_SHORT="hv"
+	OPT_LONG="help,verbose"
+	OPTS=$(getopt -o $OPT_SHORT --long $OPT_LONG -n daiker -- "$@")
 else
 	helpme "ERR-001: unsupported daiker command"
 fi
@@ -78,8 +80,8 @@ do
 #run	daiker run - run a image
 #convert	daiker convert - convert a image to a
 #SYNOPSIS
-#build	daiker build [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] FILE
-#run	daiker run [-h | --help] [-v | --verbose] [-c | --cpu] [-r | --ram] [-i | --iso] [-T | --tcp-ports] [-U | --udp-ports] [-V | --use-vnc] [-b | --base] FILE
+#build	daiker build [OPTION]... [FILE]
+#run	daiker run [OPTION]... [FILE]
 #convert	daiker convert FILE
 #OPTIONS
 		-h | --help)
@@ -112,7 +114,7 @@ do
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
 			UDPPORTS+=($2)
 			shift 2 ;;
-		-V | --use-VNC)	#use VNC instead of your X window
+		-V | --use-VNC)	#use VNC instead of X window
 			VNC=yes
 			shift ;;
 		-b | --base)	#=BASE, The base image file that a new virtual machine is created from
@@ -195,7 +197,7 @@ then
 	then
 		[ -f $BASE ] || helpme "ERR-009: no such file $BASE"
 		! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
-		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, don't use '-b $BASE' in your command, or delete '$FILE' to create a new image."
+		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, don't use '-b $BASE' in the command, or delete '$FILE' to create a new image."
 		qemu-img create -qf qcow2 -b $BASE -F qcow2 $FILE
 	else
 		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"

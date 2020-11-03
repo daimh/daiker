@@ -14,7 +14,7 @@ $ which qemu-system-x86_64 #verify if qemu is installed
 ```
 $ wget https://raw.githubusercontent.com/daimh/daiker/master/daiker
 $ chmod +x daiker
-$ mv daiker ~/bin/ # or move to any directory in your PATH
+$ mv daiker ~/bin/ # or any directory in PATH
 ```
 
 ## Test steps. [Videos](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
