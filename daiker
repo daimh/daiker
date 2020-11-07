@@ -135,7 +135,6 @@ done
 [ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
 FILE=$1
 [ ! -z "$FILE" ] || helpme "ERR-003: missing FILE"
-[ "$VNC" = "yes" -o "$DISPLAY" != "" ] || helpme "ERR-004: DISPLAY is not set, are you running X?"
 MOUNTS=""
 for ((IDX=0; IDX<${#MOUNTDIRS[@]}; IDX++))
 do
@@ -165,6 +164,7 @@ fi
 if [ "$VNC" = "no" ]
 then
 	QEMU_DISPLAY="gtk -vga std"
+	[ "$COMMAND" = "convert" -o "$DISPLAY" != "" ] || helpme "ERR-004: DISPLAY is not set, are you running X?"
 else
 	VNC=$(get_free_ports tcp 5900 6000 1)
 	[ -z "$VNC" ] && help "ERR-014: no available vnc port"
