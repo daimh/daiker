@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 trap "exit 1" TERM
-export TOP_PID=$$
+export TOP_PGID=$(ps --no-headers -o pgid $$ | tr -d ' ')
 function helpme() {
 	if [[ "$1" = "" ]]
 	then
@@ -9,7 +9,7 @@ function helpme() {
 	else
 		echo -e "$1" 1>&2
 	fi
-	kill -s TERM $TOP_PID
+	kill -s TERM -- -$TOP_PGID
 }
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
@@ -77,12 +77,17 @@ do
 #HELPME_START
 #NAME
 #build	daiker build - build a base image
-#run	daiker run - run a image
-#convert	daiker convert - convert a image to a
+#run	daiker run - run an overlay image
+#convert	daiker convert - convert an overlay image to a base image
 #SYNOPSIS
 #build	daiker build [OPTION]... [FILE]
 #run	daiker run [OPTION]... [FILE]
 #convert	daiker convert FILE
+#EXAMPLE
+#build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.img
+#run	daiker run -b BionicBeaverBase.img BionicBeaverTest.img
+#run	daiker run -T 22 -T 80 BionicBeaverTest.img
+#convert	daiker convert BionicBeaverTest.img
 #OPTIONS
 		-h | --help)
 			helpme ;;
@@ -202,7 +207,7 @@ then
 	else
 		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"
 		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"
-		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to clone a new image"
+		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to create a new overlay image"
 	fi
 else
 	help_and_copyright
