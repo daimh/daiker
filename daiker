@@ -31,10 +31,10 @@ commands:
 	convert
 
 VERSION
-	20201103
+	20210423
 COPYRIGHT
 	Developed by Manhong Dai, https://github.com/daimh/daiker
-	Copyright © 2020 University of Michigan. License GPLv3+: GNU GPL version 3 or later
+	Copyright © 2021 University of Michigan. License GPLv3+: GNU GPL version 3 or later
 	This is free software: you are free to change and redistribute it.
 	There is NO WARRANTY, to the extent permitted by law."
 }
