@@ -70,6 +70,7 @@ PRIVATENET=no
 MOUNTDIRS=()
 TCPPORTS=()
 UDPPORTS=()
+PUBNET="user,id=n0"
 eval set -- "$OPTS"
 while :
 do
@@ -111,13 +112,27 @@ do
 		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MOUNTDIRS+=($2)
 			shift 2 ;;
-		-T | --tcp-ports)	#=PORT, one virtual machine tcp port to be forwarded to from the physical host
-			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
-			TCPPORTS+=($2)
+		-T | --tcp-ports)	#=PORT or PORT-HOSTPORT, a tcp port on the virtual machine forwarded from the physical host
+			if [[ "$2" == *"-"* ]]
+			then
+				IFS=- read VPORT HPORT <<< "$2"
+				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
+				PUBNET="$PUBNET,hostfwd=tcp::$HPORT-:$VPORT"
+			else
+				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
+				TCPPORTS+=($2)
+			fi
 			shift 2 ;;
-		-U | --udp-ports)	#=PORT, one virtual machine udp ports to be forwarded to from the physical host
-			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
-			UDPPORTS+=($2)
+		-U | --udp-ports)	#=PORT or PORT-HOSTPORT, a udp port on the virtual machine forwarded from the physical host
+			if [[ "$2" == *"-"* ]]
+			then
+				IFS=- read VPORT HPORT <<< "$2"
+				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
+				PUBNET="$PUBNET,hostfwd=udp::$HPORT-:$VPORT"
+			else
+				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
+				UDPPORTS+=($2)
+			fi
 			shift 2 ;;
 		-V | --use-VNC)	#use VNC instead of X window
 			VNC=yes
@@ -151,7 +166,6 @@ then
 	MAC=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
 	PRVNET="-device e1000,netdev=n1,mac=$MAC -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
 fi
-PUBNET="user,id=n0"
 if [[ ${#TCPPORTS[@]} -gt 0 ]]
 then
 	HOSTFWD=$( get_hostfwd tcp ${TCPPORTS[@]} )
