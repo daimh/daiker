@@ -187,8 +187,8 @@ then
 else
 	VNC=$(get_free_ports tcp 5900 6000 1)
 	[ -z "$VNC" ] && help "ERR-014: no available vnc port"
-	((VNC=VNC-5900))
-	echo "VNC=$VNC" >> $NAME/mnt/mbni-run-vm.info
+	echo "VNC ports: $VNC" 
+	((VNC=VNC-5900)) || :
 	QEMU_DISPLAY="vnc=:$VNC"
 fi
 if [ "$COMMAND" = "convert" ]
