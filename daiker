@@ -31,7 +31,7 @@ commands:
 	convert
 
 VERSION
-	20210423
+	20210505
 COPYRIGHT
 	Developed by Manhong Dai, https://github.com/daimh/daiker
 	Copyright © 2021 University of Michigan. License GPLv3+: GNU GPL version 3 or later
@@ -159,7 +159,7 @@ MOUNTS=""
 for ((IDX=0; IDX<${#MOUNTDIRS[@]}; IDX++))
 do
 	[ -d ${MOUNTDIRS[$IDX]} ] || helpme "ERR-020: no such dir ${MOUNTDIRS[$IDX]}"
-	MOUNTS="$MOUNTS -virtfs local,id=daiker-$IDX,path=${MOUNTDIRS[$IDX]},security_model=none,mount_tag=daiker-$IDX"
+	MOUNTS="$MOUNTS -virtfs local,id=daiker-$IDX,path=${MOUNTDIRS[$IDX]},security_model=none,multidevs=remap,mount_tag=daiker-$IDX"
 done
 if [ "$PRIVATENET" = "yes" ]
 then
