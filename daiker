@@ -31,7 +31,7 @@ commands:
 	convert
 
 VERSION
-	20210505
+	20210607
 COPYRIGHT
 	Developed by Manhong Dai, https://github.com/daimh/daiker
 	Copyright © 2021 University of Michigan. License GPLv3+: GNU GPL version 3 or later
@@ -43,8 +43,8 @@ function is_not_base_image {
 }
 [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ] && help_and_copyright
 COMMAND=$1
-OPT_SHORT="hvc:r:i:PM:T:U:V"
-OPT_LONG="help,verbose,cpu:,ram:,iso:,private-net,mount:,tcp-ports:,udp-ports:use-vnc"
+OPT_SHORT="hvc:r:i:PM:T:U:VQ:"
+OPT_LONG="help,verbose,cpu:,ram:,iso:,private-net,mount:,tcp-ports:,udp-ports:use-vnc,qemu-parameters"
 shift || help_and_copyright
 if [ "$COMMAND" = "build" ]
 then
@@ -137,6 +137,9 @@ do
 		-V | --use-VNC)	#use VNC instead of X window
 			VNC=yes
 			shift ;;
+		-Q | --qemu-parameters)	#Other qemu parameters
+			QEMU_PARAMETERS=$2
+			shift 2 ;;
 		-b | --base)	#=BASE, The base image file that a new virtual machine is created from
 			BASE=$2
 			shift 2 ;;
@@ -226,4 +229,4 @@ then
 else
 	help_and_copyright
 fi
-qemu-system-x86_64 -cpu host -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY
+qemu-system-x86_64 -cpu host -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY $QEMU_PARAMETERS

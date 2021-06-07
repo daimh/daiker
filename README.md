@@ -60,6 +60,12 @@ $ daiker run -P test2.img
 # ip l set eth1 up
 # ip a a 192.168.8.2/24 dev eth1
 ```
+* attach a block device to the host
+```
+$ cat /proc/partitions # please make sure it is the right device!!! Assume it is /dev/sdz in the commands below
+$ sudo chown -R $USER /dev/sdz
+$ daiker run -Q "-drive file=/dev/sdz,format=raw" windows.img
+```
 
 ## Help
 ```
@@ -75,7 +81,7 @@ Contributions are always welcome!
 
 Developed by [Manhong Dai](mailto:daimh@umich.edu)
 
-Copyright © 2020 University of Michigan. License [GPLv3+](https://gnu.org/licenses/gpl.html): GNU GPL version 3 or later 
+Copyright © 2021 University of Michigan. License [GPLv3+](https://gnu.org/licenses/gpl.html): GNU GPL version 3 or later 
 
 This is free software: you are free to change and redistribute it.
 
