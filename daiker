@@ -109,7 +109,7 @@ do
 		-P | --private-net)	#add the second NIC to share the same private network traffic with other virtual machines
 			PRIVATENET=yes
 			shift 1 ;;
-		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
+		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MOUNTDIRS+=($2)
 			shift 2 ;;
 		-T | --tcp-ports)	#=PORT or PORT-HOSTPORT, a tcp port on the virtual machine forwarded from the physical host

@@ -23,11 +23,11 @@ $ mv daiker ~/bin/ # or any directory in PATH
 ```
 $ wget http://dl-cdn.alpinelinux.org/alpine/v3.12/releases/x86_64/alpine-standard-3.12.1-x86_64.iso
 $ daiker build -i alpine-standard-3.12.1-x86_64.iso alpine-base.img 
-# #inside the virtual machine
+# #inside the guest machine
 # setup-alpine
 # poweroff
 ```
-2. create a few new virtual machines
+2. create a few new guest machines
 ```
 $ daiker run -b alpine-base.img test1.img 
 $ daiker run -b alpine-base.img test2.img 
@@ -38,25 +38,25 @@ $ daiker run test1.img
 ```
 
 ## Advanced usage
-* allow outside to access SSH service on a virtual machine. [Video](https://youtu.be/lhzlTCWviHo)
+* allow outside to access SSH service on a guest machine. [Video](https://youtu.be/lhzlTCWviHo)
 ```
 $ daiker run -T 22 test1.img
 ```
-* mount a directory on the physical host to the virtual machine
+* mount a directory on the host to the guest machine
 ```
 $ daiker run -M /tmp test1.img 
-# #inside the virtual machine
+# #inside the guest machine
 # mount -t 9p daiker-0 /mnt
 ```
-* build a cluster of virtual machines that can talk to each other. [Video](https://youtu.be/nuahSihAbno)
+* build a cluster of guest machines that can talk to each other. [Video](https://youtu.be/nuahSihAbno)
 ```
 $ daiker run -P test1.img
 $ daiker run -P test2.img 
-# #inside virtual machine test1
+# #inside guest machine test1
 # ip l set eth1 up
 # ip a a 192.168.8.1/24 dev eth1
 # ping 192.168.8.2
-# #inside virtual machine test2
+# #inside guest machine test2
 # ip l set eth1 up
 # ip a a 192.168.8.2/24 dev eth1
 ```
