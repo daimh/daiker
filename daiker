@@ -229,4 +229,4 @@ then
 else
 	help_and_copyright
 fi
-qemu-system-x86_64 -cpu host -enable-kvm -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY $QEMU_PARAMETERS
+qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY $QEMU_PARAMETERS
