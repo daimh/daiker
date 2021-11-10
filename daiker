@@ -85,10 +85,10 @@ do
 #run	daiker run [OPTION]... [FILE]
 #convert	daiker convert FILE
 #EXAMPLE
-#build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.img
-#run	daiker run -b BionicBeaverBase.img BionicBeaverTest.img
-#run	daiker run -T 22 -T 80 BionicBeaverTest.img
-#convert	daiker convert BionicBeaverTest.img
+#build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
+#run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
+#run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
+#convert	daiker convert BionicBeaverTest.qcow2
 #OPTIONS
 		-h | --help)
 			helpme ;;
@@ -137,7 +137,8 @@ do
 		-V | --use-VNC)	#use VNC instead of X window
 			VNC=yes
 			shift ;;
-		-Q | --qemu-parameters)	#Other qemu parameters
+		-Q | --qemu-parameters)	#Other qemu parameters. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
+
 			QEMU_PARAMETERS=$2
 			shift 2 ;;
 		-b | --base)	#=BASE, The base image file that a new virtual machine is created from
@@ -213,7 +214,7 @@ then
 	if [ -n "$ISO" ]
 	then
 		[ -f "$ISO" ] || helpme "ERR-008: no such file $ISO"
-		CDROM="-cdrom $ISO"
+		CDROM="-cdrom \"$ISO\""
 	fi
 	if [ -n "$BASE" ]
 	then
@@ -224,7 +225,7 @@ then
 	else
 		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"
 		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"
-		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.img' to create a new overlay image"
+		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.qcow2' to create a new overlay image"
 	fi
 else
 	help_and_copyright
