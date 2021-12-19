@@ -14,7 +14,7 @@ function helpme() {
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
 	export LC_ALL=C
-	join -v 1 <(seq $2 $3) <(netstat -ln4${1:0:1} | grep ^$1 | awk '{print $4}' | cut -d : -f 2 |sort) | head -n $4
+	join -v 1 <(seq $2 $3) <(netstat --inet -ln${1:0:1} | grep ^$1 | awk '{print $4}' | cut -d : -f 2 |sort) | head -n $4
 }
 function get_hostfwd {
 	PROTO=$1
