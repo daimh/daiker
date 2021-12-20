@@ -31,7 +31,7 @@ commands:
 	convert
 
 VERSION
-	20210607
+	20211221
 COPYRIGHT
 	Developed by Manhong Dai, https://github.com/daimh/daiker
 	Copyright © 2021 University of Michigan. License GPLv3+: GNU GPL version 3 or later
@@ -43,8 +43,8 @@ function is_not_base_image {
 }
 [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ] && help_and_copyright
 COMMAND=$1
-OPT_SHORT="hvc:r:i:PM:T:U:VQ:"
-OPT_LONG="help,verbose,cpu:,ram:,iso:,private-net,mount:,tcp-ports:,udp-ports:use-vnc,qemu-parameters"
+OPT_SHORT="hvc:r:i:PM:T:U:D:Q:"
+OPT_LONG="help,verbose,cpu:,ram:,iso:,private-net,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
 shift || help_and_copyright
 if [ "$COMMAND" = "build" ]
 then
@@ -71,6 +71,7 @@ MOUNTDIRS=()
 TCPPORTS=()
 UDPPORTS=()
 PUBNET="user,id=n0"
+QEMU_DISPLAY=gtk
 eval set -- "$OPTS"
 while :
 do
@@ -134,9 +135,9 @@ do
 				UDPPORTS+=($2)
 			fi
 			shift 2 ;;
-		-V | --use-VNC)	#use VNC instead of X window
-			VNC=yes
-			shift ;;
+		-D | --display)	#gtk/vnc/none/nographic, default gtk, which requires X
+			QEMU_DISPLAY=$2
+			shift 2 ;;
 		-Q | --qemu-parameters)	#Other qemu parameters. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
 
 			QEMU_PARAMETERS=$2
@@ -184,16 +185,25 @@ then
 	echo "UDP ports: $HOSTFWD"
 	PUBNET="$PUBNET,$HOSTFWD"
 fi
-if [ "$VNC" = "no" ]
+if [ "$QEMU_DISPLAY" = "gtk" ]
 then
-	QEMU_DISPLAY="gtk -vga std"
-	[ "$COMMAND" = "convert" -o "$DISPLAY" != "" ] || helpme "ERR-004: DISPLAY is not set, are you running X?"
-else
+	QEMU_DISPLAY="-display gtk -vga std"
+	[ "$COMMAND" = "convert" -o "$DISPLAY" != "" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
+elif [ "$QEMU_DISPLAY" = "vnc" ]
+then
 	VNC=$(get_free_ports tcp 5900 6000 1)
 	[ -z "$VNC" ] && help "ERR-014: no available vnc port"
 	echo "VNC ports: $VNC" 
 	((VNC=VNC-5900)) || :
-	QEMU_DISPLAY="vnc=:$VNC"
+	QEMU_DISPLAY="-display vnc=:$VNC"
+elif [ "$QEMU_DISPLAY" = "none" ]
+then
+	QEMU_DISPLAY="-display none"
+elif [ "$QEMU_DISPLAY" = "nographic" ]
+then
+	QEMU_DISPLAY="-nographic"
+else
+	help "ERR-018: invalid argument $QEMU_DISPLAY for '-display'. Try '-h'"
 fi
 if [ "$COMMAND" = "convert" ]
 then
@@ -230,4 +240,4 @@ then
 else
 	help_and_copyright
 fi
-qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS -display $QEMU_DISPLAY $QEMU_PARAMETERS
+qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS $QEMU_DISPLAY $QEMU_PARAMETERS
