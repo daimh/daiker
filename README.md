@@ -91,7 +91,11 @@ Contributions are always welcome!
 
 Developed by [Manhong Dai](mailto:manhongdai@gmail.com)
 
-Copyright © 2022 KLA Corporation. License [GPLv3+](https://gnu.org/licenses/gpl.html): GNU GPL version 3 or later 
+Copyright © 2012University of Michigan
+
+Copyright © 2022 KLA Corporatio
+
+License [GPLv3+](https://gnu.org/licenses/gpl.html): GNU GPL version 3 or later 
 
 This is free software: you are free to change and redistribute it.
 

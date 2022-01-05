@@ -52,8 +52,8 @@ then
 	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,hda-size:" -n daiker -- "$@")
 elif [ "$COMMAND" = "run" ]
 then
-	OPT_SHORT="${OPT_SHORT}b:"
-	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,base:" -n daiker -- "$@")
+	OPT_SHORT="${OPT_SHORT}b:B:"
+	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,base:,force-base:" -n daiker -- "$@")
 elif [ "$COMMAND" = "convert" ]
 then
 	OPT_SHORT="hv"
@@ -142,7 +142,11 @@ do
 
 			QEMU_PARAMETERS=$2
 			shift 2 ;;
-		-b | --base)	#=BASE, The base image file that a new virtual machine is created from
+		-b | --base)	#=BASE, the base image that a new virtual machine will be created from. BASE should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
+			BASE=$2
+			shift 2 ;;
+		-B | --force-base)	#=FORCE-BASE, force the file FORCE-BASE to be the base image, even if FORCE-BASE is a qemu image requiring backing file. This option is not recommended as an accidental 'daiker run' on FORCE-BASE can cause disk corruption of any new virtual machines using FORCE-BASE as base
+			FORCE=YES
 			BASE=$2
 			shift 2 ;;
 		-H | --hda-size)	#=SIZE, hard drive size, in GB, default 50
@@ -229,7 +233,7 @@ then
 	if [ -n "$BASE" ]
 	then
 		[ -f $BASE ] || helpme "ERR-009: no such file $BASE"
-		! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
+		[ "$FORCE" = "YES" ] || ! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
 		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, don't use '-b $BASE' in the command, or delete '$FILE' to create a new image."
 		DIRFILE=$(dirname $FILE)
 		[ -d $DIRFILE ] || helpme "ERR-029: no such directory $DIRFILE"
