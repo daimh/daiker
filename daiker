@@ -31,10 +31,10 @@ commands:
 	convert
 
 VERSION
-	20211221
+	20220105
 COPYRIGHT
 	Developed by Manhong Dai, https://github.com/daimh/daiker
-	Copyright © 2021 University of Michigan. License GPLv3+: GNU GPL version 3 or later
+	Copyright © 2022 KLA Corporation. License GPLv3+: GNU GPL version 3 or later
 	This is free software: you are free to change and redistribute it.
 	There is NO WARRANTY, to the extent permitted by law."
 }
@@ -120,7 +120,7 @@ do
 				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
 				PUBNET="$PUBNET,hostfwd=tcp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
+				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -T $2"
 				TCPPORTS+=($2)
 			fi
 			shift 2 ;;
@@ -128,10 +128,10 @@ do
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
+				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-026: invalid number: -U $2"
 				PUBNET="$PUBNET,hostfwd=udp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -U $2"
+				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-027: invalid number: -U $2"
 				UDPPORTS+=($2)
 			fi
 			shift 2 ;;
@@ -207,7 +207,7 @@ else
 fi
 if [ "$COMMAND" = "convert" ]
 then
-	is_not_base_image $FILE || helpme "ERR-026: $FILE is already a base image"
+	is_not_base_image $FILE || helpme "ERR-028: $FILE is already a base image"
 	read -p "convert \"$FILE\" to base image? type \"$FILE\" to confirm: " ANS
 	[ "$ANS" == "$FILE" ] || helpme "Quitting"
 	qemu-img rebase -F qcow2 -f qcow2 -b "" $FILE
@@ -231,7 +231,9 @@ then
 		[ -f $BASE ] || helpme "ERR-009: no such file $BASE"
 		! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
 		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, don't use '-b $BASE' in the command, or delete '$FILE' to create a new image."
-		qemu-img create -qf qcow2 -b $BASE -F qcow2 $FILE
+		DIRFILE=$(dirname $FILE)
+		[ -d $DIRFILE ] || helpme "ERR-029: no such directory $DIRFILE"
+		qemu-img create -qf qcow2 -b $(realpath --relative-to=$DIRFILE $BASE) -F qcow2 $FILE
 	else
 		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"
 		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"

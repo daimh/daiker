@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!DOCTYPE profile>
+<profile
+  xmlns="http://www.suse.com/1.0/yast2ns"
+  xmlns:config="http://www.suse.com/1.0/configns">
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+    </mode>
+  </general>
+  <partitioning config:type="list">
+    <drive>
+      <device>/dev/sda</device>
+      <partitions config:type="list">
+        <partition>
+          <filesystem config:type="symbol">xfs</filesystem>
+          <size>49G</size>
+          <mount>/</mount>
+        </partition>
+      </partitions>
+    </drive>
+  </partitioning>
+  <scripts>
+    <post-scripts config:type="list">
+       <script>
+         <filename>my-post-install.sh</filename>
+         <interpreter>shell</interpreter>
+         <source><![CDATA[
+#!/bin/sh
+mkdir /root/.ssh
+chmod 700 /root/.ssh
+curl http://10.0.2.2:PORT_web/authorized_keys > /root/.ssh/authorized_keys 
+]]>
+         </source>
+       </script>
+    </post-scripts>
+  </scripts>
+  <software>
+    <packages config:type="list">
+      <package>openssh</package>
+    </packages>
+    <do_online_update config:type="boolean">true</do_online_update>
+  </software>
+<!--
+  <users config:type="list">
+    <user>
+      <encrypted config:type="boolean">false</encrypted>
+      <user_password>daiker is good</user_password>
+      <username>root</username>
+    </user>
+  </users>
+-->
+</profile>
