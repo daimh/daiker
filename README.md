@@ -58,10 +58,10 @@ daiker run -M /tmp test1.qcow2
 # #inside the guest machine
 # mount -t 9p daiker-0 /mnt
 ```
-* build a cluster of guest machines that can talk to each other. [Video](https://youtu.be/nuahSihAbno)
+* build a cluster of guest machines that can talk to each other. [Video](https://youtu.be/nuahSihAbno) Note '-P' in the video is replaced by '-e'
 ```
-daiker run -P test1.qcow2
-daiker run -P test2.qcow2 
+daiker run -e test1.qcow2
+daiker run -e test2.qcow2 
 # #inside guest machine test1
 # ip l set eth1 up
 # ip a a 192.168.8.1/24 dev eth1
@@ -91,7 +91,7 @@ Contributions are always welcome!
 
 Developed by [Manhong Dai](mailto:manhongdai@gmail.com)
 
-Copyright © 2012University of Michigan
+Copyright © 2002-2021 University of Michigan
 
 Copyright © 2022 KLA Corporatio
 

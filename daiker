@@ -43,8 +43,8 @@ function is_not_base_image {
 }
 [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ] && help_and_copyright
 COMMAND=$1
-OPT_SHORT="hvc:r:i:PM:T:U:D:Q:"
-OPT_LONG="help,verbose,cpu:,ram:,iso:,private-net,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
+OPT_SHORT="hvc:r:i:deM:T:U:D:Q:"
+OPT_LONG="help,verbose,cpu:,ram:,iso:,disable-public-net,enable-private-net,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
 shift || help_and_copyright
 if [ "$COMMAND" = "build" ]
 then
@@ -66,11 +66,12 @@ CPU=2
 RAM=4
 HDA=50
 VNC=no
-PRIVATENET=no
+ENABLEPRIVATENET=no
+DISABLEPUBLICNET=no
 MOUNTDIRS=()
 TCPPORTS=()
 UDPPORTS=()
-PUBNET="user,id=n0"
+PUBNET="-device e1000,netdev=n0 -netdev user,id=n0"
 QEMU_DISPLAY=gtk
 eval set -- "$OPTS"
 while :
@@ -82,8 +83,8 @@ do
 #run	daiker run - run an overlay image
 #convert	daiker convert - convert an overlay image to a base image
 #SYNOPSIS
-#build	daiker build [OPTION]... [FILE]
-#run	daiker run [OPTION]... [FILE]
+#build	daiker build [OPTION]... FILE|/dev/null
+#run	daiker run [OPTION]... FILE
 #convert	daiker convert FILE
 #EXAMPLE
 #build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
@@ -107,8 +108,11 @@ do
 		-i | --iso)	#=ISO file, used as cdrom
 			ISO=$2
 			shift 2 ;;
-		-P | --private-net)	#add the second NIC to share the same private network traffic with other virtual machines
-			PRIVATENET=yes
+		-d | --disable-public-net)	#disable public net. The machine won't be able to access the Internet.
+			DISABLEPUBLICNET=yes
+			shift 1 ;;
+		-e | --enable-private-net)	#add a NIC to share the same private network traffic with other virtual machines that also used '-e'
+			ENABLEPRIVATENET=yes
 			shift 1 ;;
 		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MOUNTDIRS+=($2)
@@ -170,13 +174,14 @@ do
 	[ -d ${MOUNTDIRS[$IDX]} ] || helpme "ERR-020: no such dir ${MOUNTDIRS[$IDX]}"
 	MOUNTS="$MOUNTS -virtfs local,id=daiker-$IDX,path=${MOUNTDIRS[$IDX]},security_model=none,multidevs=remap,mount_tag=daiker-$IDX"
 done
-if [ "$PRIVATENET" = "yes" ]
+if [ "$ENABLEPRIVATENET" = "yes" ]
 then
 	MAC=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
 	PRVNET="-device e1000,netdev=n1,mac=$MAC -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
 fi
 if [[ ${#TCPPORTS[@]} -gt 0 ]]
 then
+	[ "$DISABLEPUBLICNET" != "yes" ] || helpme "ERR-006: -T cannot be used with -d"
 	HOSTFWD=$( get_hostfwd tcp ${TCPPORTS[@]} )
 	[ -n "$HOSTFWD" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
 	echo "TCP ports: $HOSTFWD"
@@ -184,6 +189,7 @@ then
 fi
 if [[ ${#UDPPORTS[@]} -gt 0 ]]
 then
+	[ "$DISABLEPUBLICNET" != "yes" ] || helpme "ERR-030: -U cannot be used with -d"
 	HOSTFWD=$( get_hostfwd udp ${UDPPORTS[@]} )
 	[ -n "$HOSTFWD" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
 	echo "UDP ports: $HOSTFWD"
@@ -209,6 +215,10 @@ then
 else
 	help "ERR-018: invalid argument $QEMU_DISPLAY for '-display'. Try '-h'"
 fi
+if [ "$DISABLEPUBLICNET" = "yes" ]
+then
+	PUBNET=""
+fi
 if [ "$COMMAND" = "convert" ]
 then
 	is_not_base_image $FILE || helpme "ERR-028: $FILE is already a base image"
@@ -218,16 +228,18 @@ then
 	exit
 elif [ "$COMMAND" = "build" ]
 then
-	[ ! -f $FILE ] || helpme "ERR-005: $FILE exists"
-	[ -f "$ISO" ] || helpme "ERR-006: no such file $ISO"
-	[ ! -z "$HDA" ] || helpme "ERR-007: missing -H $HDA"
-	qemu-img create -qf qcow2 $FILE ${HDA}G
-	CDROM="-cdrom $ISO"
+	if [ "$FILE" != "/dev/null" ]
+	then
+		[ ! -f $FILE ] || helpme "ERR-005: $FILE exists"
+		[ ! -z "$HDA" ] || helpme "ERR-007: missing -H $HDA"
+		qemu-img create -qf qcow2 $FILE ${HDA}G
+		[ -z "$ISO" ] || CDROM="-cdrom $ISO"
+	fi
 elif [ "$COMMAND" = "run" ]
 then
 	if [ -n "$ISO" ]
 	then
-		[ -f "$ISO" ] || helpme "ERR-008: no such file $ISO"
+		[ -f "$ISO" ] || helpme "ERR-008: no such iso file $ISO"
 		CDROM="-cdrom \"$ISO\""
 	fi
 	if [ -n "$BASE" ]
@@ -246,4 +258,4 @@ then
 else
 	help_and_copyright
 fi
-qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G -hda $FILE $CDROM -device e1000,netdev=n0 -netdev $PUBNET $PRVNET $MOUNTS $QEMU_DISPLAY $QEMU_PARAMETERS
+qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G -hda $FILE $CDROM $PUBNET $PRVNET $MOUNTS $QEMU_DISPLAY $QEMU_PARAMETERS
