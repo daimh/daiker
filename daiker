@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-set -e
+set -euf
+set -o pipefail
 trap "exit 1" TERM
-export TOP_PGID=$(ps --no-headers -o pgid $$ | tr -d ' ')
-function helpme() {
-	if [[ "$1" = "" ]]
+function helpme {
+	if [ $# -gt 0 ]
 	then
-		cat /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -e "	-\|^#" | grep -- "$(echo $OPT_SHORT | sed -e "s/://g" | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$COMMAND\t\\\|^#[A-Z]/" )" | sed -e "s/^#$COMMAND\t/\t/; s/^#//" 1>&2
-	else
 		echo -e "$1" 1>&2
+	else
+		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | sed -e "s/#//" | tr -s '\t' 1>&2 #20220313
 	fi
-	kill -s TERM -- -$TOP_PGID
+	PGID=$(cut -d ' ' -f 5 /proc/$$/stat)
+	kill -s TERM -- -$PGID
 }
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
@@ -23,29 +24,22 @@ function get_hostfwd {
 	COUNT=$(echo "$@" | sed -e "s/ /\n/g" | wc -l)
 	paste <(get_free_ports $PROTO 40000 50000 $COUNT) <(echo "$@" | sed -e "s/ /\n/g") | awk -v PROTO=$PROTO '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", PROTO, $1, $2}'
 }
-function help_and_copyright {
+function usage {
 	helpme "Usage: daiker <command> [-h] [<args>]
 commands:
 	build
 	run	
-	convert
-
-VERSION
-	20220105
-COPYRIGHT
-	Developed by Manhong Dai, https://github.com/daimh/daiker
-	Copyright © 2022 KLA Corporation. License GPLv3+: GNU GPL version 3 or later
-	This is free software: you are free to change and redistribute it.
-	There is NO WARRANTY, to the extent permitted by law."
+	convert"
 }
 function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
-[ "$1" = "-h" -o "$1" = "--help" -o "$1" = "help" ] && help_and_copyright
+[ $# -gt 0 ] || usage
+[ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
 COMMAND=$1
-OPT_SHORT="hvc:r:i:deM:T:U:D:Q:"
-OPT_LONG="help,verbose,cpu:,ram:,iso:,disable-public-net,enable-private-net,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
-shift || help_and_copyright
+OPT_SHORT="hvc:r:i:de:M:T:U:D:Q:"
+OPT_LONG="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
+shift || usage
 if [ "$COMMAND" = "build" ]
 then
 	OPT_SHORT="${OPT_SHORT}H:"
@@ -57,22 +51,26 @@ then
 elif [ "$COMMAND" = "convert" ]
 then
 	OPT_SHORT="hv"
-	OPT_LONG="help,verbose"
+	OPT_LONG="help,version"
 	OPTS=$(getopt -o $OPT_SHORT --long $OPT_LONG -n daiker -- "$@")
 else
 	helpme "ERR-001: unsupported daiker command"
 fi
 CPU=2
+ISO=""
+CDROM=""
 RAM=4
-HDA=50
+HDS=50
 VNC=no
-ENABLEPRIVATENET=no
-DISABLEPUBLICNET=no
+ENABLEPRIVATENET=""
+DISABLEPUBLICNET=""
+FORCE=""
 MOUNTDIRS=()
 TCPPORTS=()
 UDPPORTS=()
 PUBNET="-device e1000,netdev=n0 -netdev user,id=n0"
 QEMU_DISPLAY=gtk
+QEMU_PARAMETERS=""
 eval set -- "$OPTS"
 while :
 do
@@ -92,9 +90,12 @@ do
 #run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
 #convert	daiker convert BionicBeaverTest.qcow2
 #OPTIONS
-		-h | --help)
+		-h | --help)	#print help information
 			helpme ;;
-		-v | --verbose)
+		--version)	#print version
+			helpme 20220327
+			shift ;;
+		-v )	#verbose output
 			set -x
 			shift ;;
 		-c | --cpu)	#=CPU, number of cpus, default 2
@@ -108,12 +109,12 @@ do
 		-i | --iso)	#=ISO file, used as cdrom
 			ISO=$2
 			shift 2 ;;
-		-d | --disable-public-net)	#disable public net. The machine won't be able to access the Internet.
-			DISABLEPUBLICNET=yes
+		-d | --disable-public-net)	#disable public net. The machine won't be able to access the Internet
+			DISABLEPUBLICNET=YES
 			shift 1 ;;
-		-e | --enable-private-net)	#add a NIC to share the same private network traffic with other virtual machines that also used '-e'
-			ENABLEPRIVATENET=yes
-			shift 1 ;;
+		-e | --enable-private-net)	#=random/11:22:33, add a NIC with a specfic or random mac address to share the same private network traffic with other virtual machines that also used '-e'. If it is not "random", the mac address will be prepended with '52:54:00'
+			ENABLEPRIVATENET=$2
+			shift 2 ;;
 		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MOUNTDIRS+=($2)
 			shift 2 ;;
@@ -155,33 +156,47 @@ do
 			shift 2 ;;
 		-H | --hda-size)	#=SIZE, hard drive size, in GB, default 50
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-025: invalid number: -H $2"
-			HDA=$2
+			HDS=$2
 			shift 2 ;;
-#HELPME_END
 		--)
 			shift
 			break ;;
 		*)
 			break ;;
+#AUTHOR
+#	Manhong Dai
+#COPYRIGHT
+#	Copyright © 2002-2022 University of Michigan, 2022 KLA.
+#	License GPLv3+: GNU GPL version 3 or later
+#	<https://gnu.org/licenses/gpl.html>.
+#	This is free software: you are free to change and redistribute it.
+#	There is NO WARRANTY, to the extent permitted by law.
+#HELPME_END
 	esac
 done
 [ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
 FILE=$1
 [ ! -z "$FILE" ] || helpme "ERR-003: missing FILE"
+HDA="-hda $FILE"
 MOUNTS=""
 for ((IDX=0; IDX<${#MOUNTDIRS[@]}; IDX++))
 do
 	[ -d ${MOUNTDIRS[$IDX]} ] || helpme "ERR-020: no such dir ${MOUNTDIRS[$IDX]}"
 	MOUNTS="$MOUNTS -virtfs local,id=daiker-$IDX,path=${MOUNTDIRS[$IDX]},security_model=none,multidevs=remap,mount_tag=daiker-$IDX"
 done
-if [ "$ENABLEPRIVATENET" = "yes" ]
+if [ -n "$ENABLEPRIVATENET" ]
 then
-	MAC=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
+	if [ "$ENABLEPRIVATENET" = "random" ]
+	then
+		MAC=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
+	else
+		MAC=$(printf "52:54:00:$ENABLEPRIVATENET\n")
+	fi
 	PRVNET="-device e1000,netdev=n1,mac=$MAC -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
 fi
 if [[ ${#TCPPORTS[@]} -gt 0 ]]
 then
-	[ "$DISABLEPUBLICNET" != "yes" ] || helpme "ERR-006: -T cannot be used with -d"
+	[ "$DISABLEPUBLICNET" != "YES" ] || helpme "ERR-006: -T cannot be used with -d"
 	HOSTFWD=$( get_hostfwd tcp ${TCPPORTS[@]} )
 	[ -n "$HOSTFWD" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
 	echo "TCP ports: $HOSTFWD"
@@ -189,7 +204,7 @@ then
 fi
 if [[ ${#UDPPORTS[@]} -gt 0 ]]
 then
-	[ "$DISABLEPUBLICNET" != "yes" ] || helpme "ERR-030: -U cannot be used with -d"
+	[ "$DISABLEPUBLICNET" != "YES" ] || helpme "ERR-030: -U cannot be used with -d"
 	HOSTFWD=$( get_hostfwd udp ${UDPPORTS[@]} )
 	[ -n "$HOSTFWD" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
 	echo "UDP ports: $HOSTFWD"
@@ -215,7 +230,7 @@ then
 else
 	help "ERR-018: invalid argument $QEMU_DISPLAY for '-display'. Try '-h'"
 fi
-if [ "$DISABLEPUBLICNET" = "yes" ]
+if [ "$DISABLEPUBLICNET" = "YES" ]
 then
 	PUBNET=""
 fi
@@ -228,11 +243,13 @@ then
 	exit
 elif [ "$COMMAND" = "build" ]
 then
-	if [ "$FILE" != "/dev/null" ]
+	if [ "$FILE" = "/dev/null" ]
 	then
+		HDA=""
+	else
 		[ ! -f $FILE ] || helpme "ERR-005: $FILE exists"
-		[ ! -z "$HDA" ] || helpme "ERR-007: missing -H $HDA"
-		qemu-img create -qf qcow2 $FILE ${HDA}G
+		[ ! -z "$HDS" ] || helpme "ERR-007: missing -H"
+		qemu-img create -qf qcow2 $FILE ${HDS}G
 		[ -z "$ISO" ] || CDROM="-cdrom $ISO"
 	fi
 elif [ "$COMMAND" = "run" ]
@@ -256,6 +273,6 @@ then
 		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.qcow2' to create a new overlay image"
 	fi
 else
-	help_and_copyright
+	usage
 fi
-qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G -hda $FILE $CDROM $PUBNET $PRVNET $MOUNTS $QEMU_DISPLAY $QEMU_PARAMETERS
+qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G $HDA $CDROM $PUBNET $PRVNET $MOUNTS $QEMU_DISPLAY $QEMU_PARAMETERS
