@@ -212,8 +212,8 @@ then
 fi
 if [ "$QEMU_DISPLAY" = "gtk" ]
 then
+	[ "$COMMAND" = "convert" -o -n ${DISPLAY:-} ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
 	QEMU_DISPLAY="-display gtk -vga std"
-	[ "$COMMAND" = "convert" -o "$DISPLAY" != "" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
 elif [ "$QEMU_DISPLAY" = "vnc" ]
 then
 	VNC=$(get_free_ports tcp 5900 6000 1)
