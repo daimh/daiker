@@ -68,6 +68,7 @@ FORCE=""
 MOUNTDIRS=()
 TCPPORTS=()
 UDPPORTS=()
+PRVNET=""
 PUBNET="-device e1000,netdev=n0 -netdev user,id=n0"
 QEMU_DISPLAY=gtk
 QEMU_PARAMETERS=""
@@ -93,7 +94,7 @@ do
 		-h | --help)	#print help information
 			helpme ;;
 		--version)	#print version
-			helpme 20220327
+			helpme 20220406
 			shift ;;
 		-v )	#verbose output
 			set -x
@@ -212,7 +213,9 @@ then
 fi
 if [ "$QEMU_DISPLAY" = "gtk" ]
 then
-	[ "$COMMAND" = "convert" -o -n ${DISPLAY:-} ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
+	set +u
+	[ "$COMMAND" = "convert" -o -n "$DISPLAY" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
+	set -u
 	QEMU_DISPLAY="-display gtk -vga std"
 elif [ "$QEMU_DISPLAY" = "vnc" ]
 then
