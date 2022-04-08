@@ -57,6 +57,7 @@ else
 	helpme "ERR-001: unsupported daiker command"
 fi
 CPU=2
+BASE=""
 ISO=""
 CDROM=""
 RAM=4
