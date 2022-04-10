@@ -95,7 +95,7 @@ do
 		-h | --help)	#print help information
 			helpme ;;
 		--version)	#print version
-			helpme 20220406
+			helpme 20220410
 			shift ;;
 		-v )	#verbose output
 			set -x
@@ -120,7 +120,7 @@ do
 		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MOUNTDIRS+=($2)
 			shift 2 ;;
-		-T | --tcp-ports)	#=PORT or PORT-HOSTPORT, a tcp port on the virtual machine forwarded from the physical host
+		-T | --tcp-ports)	#=VMPORT or VMPORT-HOSTPORT, tcp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
@@ -131,7 +131,7 @@ do
 				TCPPORTS+=($2)
 			fi
 			shift 2 ;;
-		-U | --udp-ports)	#=PORT or PORT-HOSTPORT, a udp port on the virtual machine forwarded from the physical host
+		-U | --udp-ports)	#=VMPORT or VMPORT-HOSTPORT, udp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
