@@ -261,7 +261,7 @@ then
 	if [ -n "$ISO" ]
 	then
 		[ -f "$ISO" ] || helpme "ERR-008: no such iso file $ISO"
-		CDROM="-cdrom \"$ISO\""
+		CDROM="-cdrom $ISO"
 	fi
 	if [ -n "$BASE" ]
 	then
