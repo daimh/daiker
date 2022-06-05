@@ -7,10 +7,9 @@ function helpme {
 	then
 		echo -e "$1" 1>&2
 	else
-		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | sed -e "s/#//" | tr -s '\t' 1>&2 #20220313
+		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | sed -e "s/#//" | tr -s '\t' 1>&2 #20220605
 	fi
-	PGID=$(cut -d ' ' -f 5 /proc/$$/stat)
-	kill -s TERM -- -$PGID
+	kill -s TERM -- -$(cut -d ' ' -f 5 /proc/$$/stat)
 }
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
@@ -18,11 +17,11 @@ function get_free_ports {
 	join -v 1 <(seq $2 $3) <(netstat --inet -ln${1:0:1} | grep ^$1 | awk '{print $4}' | cut -d : -f 2 |sort) | shuf | head -n $4
 }
 function get_hostfwd {
-	PROTO=$1
+	Proto=$1
 	shift
 	[ -z "$1" ] && return
 	COUNT=$(echo "$@" | sed -e "s/ /\n/g" | wc -l)
-	paste <(get_free_ports $PROTO 40000 50000 $COUNT) <(echo "$@" | sed -e "s/ /\n/g") | awk -v PROTO=$PROTO '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", PROTO, $1, $2}'
+	paste <(get_free_ports $Proto 40000 50000 $COUNT) <(echo "$@" | sed -e "s/ /\n/g") | awk -v Proto=$Proto '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", Proto, $1, $2}'
 }
 function usage {
 	helpme "Usage: daiker <command> [-h] [<args>]
@@ -36,43 +35,42 @@ function is_not_base_image {
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
-COMMAND=$1
-OPT_SHORT="hvc:r:i:de:M:T:U:D:Q:"
-OPT_LONG="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
+Command=$1
+OptShort="hvc:r:i:de:M:T:U:D:Q:"
+OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
 shift || usage
-if [ "$COMMAND" = "build" ]
+if [ "$Command" = "build" ]
 then
-	OPT_SHORT="${OPT_SHORT}H:"
-	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,hda-size:" -n daiker -- "$@")
-elif [ "$COMMAND" = "run" ]
+	OptShort="${OptShort}H:"
+	OPTS=$(getopt -o $OptShort --long "$OptLong,hda-size:" -n daiker -- "$@")
+elif [ "$Command" = "run" ]
 then
-	OPT_SHORT="${OPT_SHORT}b:B:"
-	OPTS=$(getopt -o $OPT_SHORT --long "$OPT_LONG,base:,force-base:" -n daiker -- "$@")
-elif [ "$COMMAND" = "convert" ]
+	OptShort="${OptShort}b:B:"
+	OPTS=$(getopt -o $OptShort --long "$OptLong,base:,force-base:" -n daiker -- "$@")
+elif [ "$Command" = "convert" ]
 then
-	OPT_SHORT="hv"
-	OPT_LONG="help,version"
-	OPTS=$(getopt -o $OPT_SHORT --long $OPT_LONG -n daiker -- "$@")
+	OptShort="hv"
+	OptLong="help,version"
+	OPTS=$(getopt -o $OptShort --long $OptLong -n daiker -- "$@")
 else
 	helpme "ERR-001: unsupported daiker command"
 fi
-CPU=2
-BASE=""
-ISO=""
-CDROM=""
-RAM=4
-HDS=50
-VNC=no
-ENABLEPRIVATENET=""
-DISABLEPUBLICNET=""
-FORCE=""
-MOUNTDIRS=()
-TCPPORTS=()
-UDPPORTS=()
-PRVNET=""
-PUBNET="-device e1000,netdev=n0 -netdev user,id=n0"
-QEMU_DISPLAY=gtk
-QEMU_PARAMETERS=""
+Cpu=2
+Base=""
+Iso=""
+RamSize=4
+HdSize=50
+Vnc=no
+EnablePrivateNet=""
+DisablePublicNet=""
+Force=""
+MountDirs=()
+TcpPorts=()
+UdpPorts=()
+PrvNet=""
+PubNet="-device e1000,netdev=n0 -netdev user,id=n0"
+QemuDisplay=gtk
+QemuParameters=""
 eval set -- "$OPTS"
 while :
 do
@@ -95,40 +93,40 @@ do
 		-h | --help)	#print help information
 			helpme ;;
 		--version)	#print version
-			helpme 20220410
+			helpme 20220605
 			shift ;;
 		-v )	#verbose output
 			set -x
 			shift ;;
-		-c | --cpu)	#=CPU, number of cpus, default 2
+		-c | --cpu)	#=Cpu, number of cpus, default 2
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-021: invalid number: -c $2"
-			CPU=$2
+			Cpu=$2
 			shift 2 ;;
-		-r | --ram)	#=RAM, memory size, in GB, default 4
+		-r | --ramsize)	#=RamSize, memory size, in GB, default 4
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-022: invalid number: -r $2"
-			RAM=$2
+			RamSize=$2
 			shift 2 ;;
-		-i | --iso)	#=ISO file, used as cdrom
-			ISO=$2
+		-i | --iso)	#=Iso file, used as cdrom
+			Iso=$2
 			shift 2 ;;
 		-d | --disable-public-net)	#disable public net. The machine won't be able to access the Internet
-			DISABLEPUBLICNET=YES
+			DisablePublicNet=YES
 			shift 1 ;;
 		-e | --enable-private-net)	#=random/11:22:33, add a NIC with a specfic or random mac address to share the same private network traffic with other virtual machines that also used '-e'. If it is not "random", the mac address will be prepended with '52:54:00'
-			ENABLEPRIVATENET=$2
+			EnablePrivateNet=$2
 			shift 2 ;;
 		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
-			MOUNTDIRS+=($2)
+			MountDirs+=($2)
 			shift 2 ;;
 		-T | --tcp-ports)	#=VMPORT or VMPORT-HOSTPORT, tcp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
 				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
-				PUBNET="$PUBNET,hostfwd=tcp::$HPORT-:$VPORT"
+				PubNet="$PubNet,hostfwd=tcp::$HPORT-:$VPORT"
 			else
 				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -T $2"
-				TCPPORTS+=($2)
+				TcpPorts+=($2)
 			fi
 			shift 2 ;;
 		-U | --udp-ports)	#=VMPORT or VMPORT-HOSTPORT, udp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
@@ -136,29 +134,29 @@ do
 			then
 				IFS=- read VPORT HPORT <<< "$2"
 				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-026: invalid number: -U $2"
-				PUBNET="$PUBNET,hostfwd=udp::$HPORT-:$VPORT"
+				PubNet="$PubNet,hostfwd=udp::$HPORT-:$VPORT"
 			else
 				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-027: invalid number: -U $2"
-				UDPPORTS+=($2)
+				UdpPorts+=($2)
 			fi
 			shift 2 ;;
 		-D | --display)	#gtk/vnc/none/nographic, default gtk, which requires X
-			QEMU_DISPLAY=$2
+			QemuDisplay=$2
 			shift 2 ;;
 		-Q | --qemu-parameters)	#Other qemu parameters. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
 
-			QEMU_PARAMETERS=$2
+			QemuParameters=$2
 			shift 2 ;;
-		-b | --base)	#=BASE, the base image that a new virtual machine will be created from. BASE should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
-			BASE=$2
+		-b | --base)	#=Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
+			Base=$2
 			shift 2 ;;
-		-B | --force-base)	#=FORCE-BASE, force the file FORCE-BASE to be the base image, even if FORCE-BASE is a qemu image requiring backing file. This option is not recommended as an accidental 'daiker run' on FORCE-BASE can cause disk corruption of any new virtual machines using FORCE-BASE as base
-			FORCE=YES
-			BASE=$2
+		-B | --force-base)	#=Force-Base, force the file Force-Base to be the base image, even if Force-Base is a qemu image requiring backing file. This option is not recommended as an accidental 'daiker run' on Force-Base can cause disk corruption of any new virtual machines using Force-Base as base
+			Force=YES
+			Base=$2
 			shift 2 ;;
 		-H | --hda-size)	#=SIZE, hard drive size, in GB, default 50
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-025: invalid number: -H $2"
-			HDS=$2
+			HdSize=$2
 			shift 2 ;;
 		--)
 			shift
@@ -176,107 +174,111 @@ do
 #HELPME_END
 	esac
 done
-[ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $COMMAND -h/--help'"
-FILE=$1
-[ ! -z "$FILE" ] || helpme "ERR-003: missing FILE"
-HDA="-hda $FILE"
-MOUNTS=""
-for ((IDX=0; IDX<${#MOUNTDIRS[@]}; IDX++))
+[ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $Command -h/--help'"
+Image=$1
+[ ! -z "$Image" ] || helpme "ERR-003: missing Image"
+Hda="-hda $Image"
+Mounts=""
+for ((Idx=0; Idx<${#MountDirs[@]}; Idx++))
 do
-	[ -d ${MOUNTDIRS[$IDX]} ] || helpme "ERR-020: no such dir ${MOUNTDIRS[$IDX]}"
-	MOUNTS="$MOUNTS -virtfs local,id=daiker-$IDX,path=${MOUNTDIRS[$IDX]},security_model=none,multidevs=remap,mount_tag=daiker-$IDX"
+	[ -d ${MountDirs[$Idx]} ] || helpme "ERR-020: no such dir ${MountDirs[$Idx]}"
+	Mounts="$Mounts -virtfs local,id=daiker-$Idx,path=${MountDirs[$Idx]},security_model=none,multidevs=remap,mount_tag=daiker-$Idx"
 done
-if [ -n "$ENABLEPRIVATENET" ]
+if [ -n "$EnablePrivateNet" ]
 then
-	if [ "$ENABLEPRIVATENET" = "random" ]
+	if [ "$EnablePrivateNet" = "random" ]
 	then
-		MAC=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
+		MacAddr=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
 	else
-		MAC=$(printf "52:54:00:$ENABLEPRIVATENET\n")
+		MacAddr=$(printf "52:54:00:$EnablePrivateNet\n")
 	fi
-	PRVNET="-device e1000,netdev=n1,mac=$MAC -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
+	PrvNet="-device e1000,netdev=n1,mac=$MacAddr -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
 fi
-if [[ ${#TCPPORTS[@]} -gt 0 ]]
+if [[ ${#TcpPorts[@]} -gt 0 ]]
 then
-	[ "$DISABLEPUBLICNET" != "YES" ] || helpme "ERR-006: -T cannot be used with -d"
-	HOSTFWD=$( get_hostfwd tcp ${TCPPORTS[@]} )
-	[ -n "$HOSTFWD" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
-	echo "TCP ports: $HOSTFWD"
-	PUBNET="$PUBNET,$HOSTFWD"
+	[ "$DisablePublicNet" != "YES" ] || helpme "ERR-006: -T cannot be used with -d"
+	HostFwd=$( get_hostfwd tcp ${TcpPorts[@]} )
+	[ -n "$HostFwd" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
+	echo "TCP ports: $HostFwd"
+	PubNet="$PubNet,$HostFwd"
 fi
-if [[ ${#UDPPORTS[@]} -gt 0 ]]
+if [[ ${#UdpPorts[@]} -gt 0 ]]
 then
-	[ "$DISABLEPUBLICNET" != "YES" ] || helpme "ERR-030: -U cannot be used with -d"
-	HOSTFWD=$( get_hostfwd udp ${UDPPORTS[@]} )
-	[ -n "$HOSTFWD" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
-	echo "UDP ports: $HOSTFWD"
-	PUBNET="$PUBNET,$HOSTFWD"
+	[ "$DisablePublicNet" != "YES" ] || helpme "ERR-030: -U cannot be used with -d"
+	HostFwd=$( get_hostfwd udp ${UdpPorts[@]} )
+	[ -n "$HostFwd" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
+	echo "UDP ports: $HostFwd"
+	PubNet="$PubNet,$HostFwd"
 fi
-if [ "$QEMU_DISPLAY" = "gtk" ]
+if [ "$QemuDisplay" = "gtk" ]
 then
 	set +u
-	[ "$COMMAND" = "convert" -o -n "$DISPLAY" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
+	[ "$Command" = "convert" -o -n "$DISPLAY" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
 	set -u
-	QEMU_DISPLAY="-display gtk -vga std"
-elif [ "$QEMU_DISPLAY" = "vnc" ]
+	QemuDisplay="-display gtk -vga std"
+elif [ "$QemuDisplay" = "vnc" ]
 then
-	VNC=$(get_free_ports tcp 5900 6000 1)
-	[ -z "$VNC" ] && help "ERR-014: no available vnc port"
-	echo "VNC ports: $VNC" 
-	((VNC=VNC-5900)) || :
-	QEMU_DISPLAY="-display vnc=:$VNC"
-elif [ "$QEMU_DISPLAY" = "none" ]
+	Vnc=$(get_free_ports tcp 5900 5999 1)
+	[ -z "$Vnc" ] && help "ERR-014: no available vnc port"
+	echo "Vnc ports: $Vnc" 
+	((Vnc=Vnc-5900)) || :
+	QemuDisplay="-display vnc=:$Vnc"
+elif [ "$QemuDisplay" = "none" ]
 then
-	QEMU_DISPLAY="-display none"
-elif [ "$QEMU_DISPLAY" = "nographic" ]
+	QemuDisplay="-display none"
+elif [ "$QemuDisplay" = "nographic" ]
 then
-	QEMU_DISPLAY="-nographic"
+	QemuDisplay="-nographic"
 else
-	help "ERR-018: invalid argument $QEMU_DISPLAY for '-display'. Try '-h'"
+	help "ERR-018: invalid argument $QemuDisplay for '-display'. Try '-h'"
 fi
-if [ "$DISABLEPUBLICNET" = "YES" ]
+if [ "$DisablePublicNet" = "YES" ]
 then
-	PUBNET=""
+	PubNet=""
 fi
-if [ "$COMMAND" = "convert" ]
+if [ "$Command" = "convert" ]
 then
-	is_not_base_image $FILE || helpme "ERR-028: $FILE is already a base image"
-	read -p "convert \"$FILE\" to base image? type \"$FILE\" to confirm: " ANS
-	[ "$ANS" == "$FILE" ] || helpme "Quitting"
-	qemu-img rebase -F qcow2 -f qcow2 -b "" $FILE
+	is_not_base_image $Image || helpme "ERR-028: $Image is already a base image"
+	read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
+	[ "$Ans" == "$Image" ] || helpme "Quitting"
+	qemu-img rebase -F qcow2 -f qcow2 -b "" $Image
 	exit
-elif [ "$COMMAND" = "build" ]
+elif [ "$Command" = "build" ]
 then
-	if [ "$FILE" = "/dev/null" ]
+	if [ "$Image" = "/dev/null" ]
 	then
-		HDA=""
+		Hda=""
 	else
-		[ ! -f $FILE ] || helpme "ERR-005: $FILE exists"
-		[ ! -z "$HDS" ] || helpme "ERR-007: missing -H"
-		qemu-img create -qf qcow2 $FILE ${HDS}G
-		[ -z "$ISO" ] || CDROM="-cdrom $ISO"
+		[ ! -f $Image ] || helpme "ERR-005: $Image exists"
+		[ ! -z "$HdSize" ] || helpme "ERR-007: missing -H"
+		qemu-img create -qf qcow2 $Image ${HdSize}G
+		[ -z "$Iso" ] || Iso="-cdrom $Iso"
 	fi
-elif [ "$COMMAND" = "run" ]
+elif [ "$Command" = "run" ]
 then
-	if [ -n "$ISO" ]
+	if [ -n "$Iso" ]
 	then
-		[ -f "$ISO" ] || helpme "ERR-008: no such iso file $ISO"
-		CDROM="-cdrom $ISO"
+		[ -f "$Iso" ] || helpme "ERR-008: no such iso file $Iso"
+		Iso="-cdrom $Iso"
 	fi
-	if [ -n "$BASE" ]
+	if [ -n "$Base" ]
 	then
-		[ -f $BASE ] || helpme "ERR-009: no such file $BASE"
-		[ "$FORCE" = "YES" ] || ! is_not_base_image $BASE || helpme "ERR-019: $BASE is not a base image, please run 'daiker convert $BASE' to convert it first"
-		[ ! -f $FILE ] || helpme "ERR-010: $FILE exists, don't use '-b $BASE' in the command, or delete '$FILE' to create a new image."
-		DIRFILE=$(dirname $FILE)
-		[ -d $DIRFILE ] || helpme "ERR-029: no such directory $DIRFILE"
-		qemu-img create -qf qcow2 -b $(realpath --relative-to=$DIRFILE $BASE) -F qcow2 $FILE
+		[ -f $Base ] || helpme "ERR-009: no such file $Base"
+		[ "$Force" = "YES" ] || ! is_not_base_image $Base || helpme "ERR-019: $Base is not a base image, please run 'daiker convert $Base' to convert it first"
+		[ ! -f $Image ] || helpme "ERR-010: $Image exists, don't use '-b $Base' in the command, or delete '$Image' to create a new image."
+		DirName=$(dirname $Image)
+		[ -d $DirName ] || helpme "ERR-029: no such directory $DirName"
+		qemu-img create -qf qcow2 -b $(realpath --relative-to=$DirName $Base) -F qcow2 $Image
 	else
-		[ -f $FILE ] || helpme "ERR-011: no such file $FILE"
-		! fuser $FILE || helpme "ERR-012: $FILE is in use by the process above"
-		is_not_base_image $FILE || helpme "ERR-013: $FILE is a base image, please run 'daiker run -b $FILE NEWFILE.qcow2' to create a new overlay image"
+		[ -f $Image ] || helpme "ERR-011: no such file $Image"
+		! fuser $Image || helpme "ERR-012: $Image is in use by the process above"
+		is_not_base_image $Image || helpme "ERR-013: $Image is a base image, please run 'daiker run -b $Image new-image.qcow2' to create a new overlay image"
 	fi
 else
 	usage
 fi
-qemu-system-x86_64 -cpu host -enable-kvm -usb -device usb-tablet -smp $CPU -m ${RAM}G $HDA $CDROM $PUBNET $PRVNET $MOUNTS $QEMU_DISPLAY $QEMU_PARAMETERS
+QemuBin=$(which qemu-system-x86_64 2>/dev/null)
+[ -n "$QemuBin" ] || QemuBin=$(which qemu-kvm 2>/dev/null)
+[ -n "$QemuBin" ] || QemuBin=$(which /usr/libexec/qemu-kvm 2>/dev/null)
+[ -n "$QemuBin" ] || helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
+$QemuBin -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay $QemuParameters
