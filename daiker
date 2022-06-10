@@ -82,7 +82,7 @@ do
 #convert	daiker convert - convert an overlay image to a base image
 #SYNOPSIS
 #build	daiker build [OPTION]... FILE|/dev/null
-#run	daiker run [OPTION]... FILE
+#run	daiker run [OPTION]... FILE|/dev/null
 #convert	daiker convert FILE
 #EXAMPLE
 #build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
@@ -93,7 +93,7 @@ do
 		-h | --help)	#print help information
 			helpme ;;
 		--version)	#print version
-			helpme 20220605
+			helpme 20220610
 			shift ;;
 		-v )	#verbose output
 			set -x
@@ -177,7 +177,12 @@ done
 [ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $Command -h/--help'"
 Image=$1
 [ ! -z "$Image" ] || helpme "ERR-003: missing Image"
-Hda="-hda $Image"
+if [ "$Image" = "/dev/null" ]
+then
+	Hda=""
+else
+	Hda="-hda $Image"
+fi
 Mounts=""
 for ((Idx=0; Idx<${#MountDirs[@]}; Idx++))
 do
@@ -236,6 +241,11 @@ if [ "$DisablePublicNet" = "YES" ]
 then
 	PubNet=""
 fi
+if [ -n "$Iso" ]
+then
+	[ -f "$Iso" ] || helpme "ERR-008: no such iso file $Iso"
+	Iso="-cdrom $Iso"
+fi
 if [ "$Command" = "convert" ]
 then
 	is_not_base_image $Image || helpme "ERR-028: $Image is already a base image"
@@ -245,22 +255,14 @@ then
 	exit
 elif [ "$Command" = "build" ]
 then
-	if [ "$Image" = "/dev/null" ]
+	if [ "$Image" != "/dev/null" ]
 	then
-		Hda=""
-	else
 		[ ! -f $Image ] || helpme "ERR-005: $Image exists"
 		[ ! -z "$HdSize" ] || helpme "ERR-007: missing -H"
 		qemu-img create -qf qcow2 $Image ${HdSize}G
-		[ -z "$Iso" ] || Iso="-cdrom $Iso"
 	fi
 elif [ "$Command" = "run" ]
 then
-	if [ -n "$Iso" ]
-	then
-		[ -f "$Iso" ] || helpme "ERR-008: no such iso file $Iso"
-		Iso="-cdrom $Iso"
-	fi
 	if [ -n "$Base" ]
 	then
 		[ -f $Base ] || helpme "ERR-009: no such file $Base"
@@ -281,4 +283,4 @@ QemuBin=$(which qemu-system-x86_64 2>/dev/null)
 [ -n "$QemuBin" ] || QemuBin=$(which qemu-kvm 2>/dev/null)
 [ -n "$QemuBin" ] || QemuBin=$(which /usr/libexec/qemu-kvm 2>/dev/null)
 [ -n "$QemuBin" ] || helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
-$QemuBin -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay $QemuParameters
+$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay $QemuParameters
