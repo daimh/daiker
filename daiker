@@ -33,6 +33,9 @@ commands:
 function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
+function version {
+	helpme 20220612
+}
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
 Command=$1
@@ -52,6 +55,9 @@ then
 	OptShort="hv"
 	OptLong="help,version"
 	OPTS=$(getopt -o $OptShort --long $OptLong -n daiker -- "$@")
+elif [ "$Command" = "--version" ]
+then
+	version
 else
 	helpme "ERR-001: unsupported daiker command"
 fi
@@ -93,8 +99,7 @@ do
 		-h | --help)	#print help information
 			helpme ;;
 		--version)	#print version
-			helpme 20220610
-			shift ;;
+			version ;;
 		-v )	#verbose output
 			set -x
 			shift ;;
@@ -271,7 +276,8 @@ then
 		DirName=$(dirname $Image)
 		[ -d $DirName ] || helpme "ERR-029: no such directory $DirName"
 		qemu-img create -qf qcow2 -b $(realpath --relative-to=$DirName $Base) -F qcow2 $Image
-	else
+	elif [ "$Image" != "/dev/null" ]
+	then
 		[ -f $Image ] || helpme "ERR-011: no such file $Image"
 		! fuser $Image || helpme "ERR-012: $Image is in use by the process above"
 		is_not_base_image $Image || helpme "ERR-013: $Image is a base image, please run 'daiker run -b $Image new-image.qcow2' to create a new overlay image"
