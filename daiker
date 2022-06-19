@@ -34,7 +34,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20220612
+	helpme 20220619
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -149,7 +149,6 @@ do
 			QemuDisplay=$2
 			shift 2 ;;
 		-Q | --qemu-parameters)	#Other qemu parameters. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
-
 			QemuParameters=$2
 			shift 2 ;;
 		-b | --base)	#=Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
@@ -271,15 +270,20 @@ then
 	then
 		[ -f $Base ] || helpme "ERR-009: no such file $Base"
 		[ "$Force" = "YES" ] || ! is_not_base_image $Base || helpme "ERR-019: $Base is not a base image, please run 'daiker convert $Base' to convert it first"
-		[ ! -f $Image ] || helpme "ERR-010: $Image exists, don't use '-b $Base' in the command, or delete '$Image' to create a new image."
 		DirName=$(dirname $Image)
-		[ -d $DirName ] || helpme "ERR-029: no such directory $DirName"
-		qemu-img create -qf qcow2 -b $(realpath --relative-to=$DirName $Base) -F qcow2 $Image
+		if [ -f $Image ]
+		then
+			Backing=$(qemu-img info $Image | grep '^backing file: ' | sed -e "s/^backing file: //; s/ (actual path: .*//")
+			[ "$(realpath $DirName/$Backing)" = "$(realpath $Base)" ] || helpme "ERR-010: overlay image '$Image' already exists, but its base image is '$Backing', instead of '-b $Base'. Either delete the file '$Image' or don't use '-b $Base' in the command."
+		else
+			[ -d $DirName ] || helpme "ERR-029: no such directory $DirName"
+			qemu-img create -qf qcow2 -b $(realpath --relative-to=$DirName $Base) -F qcow2 $Image
+		fi
 	elif [ "$Image" != "/dev/null" ]
 	then
 		[ -f $Image ] || helpme "ERR-011: no such file $Image"
 		! fuser $Image || helpme "ERR-012: $Image is in use by the process above"
-		is_not_base_image $Image || helpme "ERR-013: $Image is a base image, please run 'daiker run -b $Image new-image.qcow2' to create a new overlay image"
+		[ "$Force" = "YES" ] || is_not_base_image $Image || helpme "ERR-013: $Image is a base image, please run 'daiker run -b $Image new-image.qcow2' to create a new overlay image, or use -F at your own risk!"
 	fi
 else
 	usage
