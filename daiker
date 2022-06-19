@@ -48,8 +48,8 @@ then
 	OPTS=$(getopt -o $OptShort --long "$OptLong,hda-size:" -n daiker -- "$@")
 elif [ "$Command" = "run" ]
 then
-	OptShort="${OptShort}b:B:"
-	OPTS=$(getopt -o $OptShort --long "$OptLong,base:,force-base:" -n daiker -- "$@")
+	OptShort="${OptShort}b:F"
+	OPTS=$(getopt -o $OptShort --long "$OptLong,base:,force" -n daiker -- "$@")
 elif [ "$Command" = "convert" ]
 then
 	OptShort="hv"
@@ -155,10 +155,9 @@ do
 		-b | --base)	#=Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
 			Base=$2
 			shift 2 ;;
-		-B | --force-base)	#=Force-Base, force the file Force-Base to be the base image, even if Force-Base is a qemu image requiring backing file. This option is not recommended as an accidental 'daiker run' on Force-Base can cause disk corruption of any new virtual machines using Force-Base as base
+		-F | --force)	#force to run on either a base image to modify it, or an overlay image as base. It could corrupt other overlay images depending on the image being modified. Use at your risk!
 			Force=YES
-			Base=$2
-			shift 2 ;;
+			shift ;;
 		-H | --hda-size)	#=SIZE, hard drive size, in GB, default 50
 			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-025: invalid number: -H $2"
 			HdSize=$2
