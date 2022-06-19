@@ -14,6 +14,7 @@ function helpme {
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
 	export LC_ALL=C
+	sleep 0.$(($RANDOM%10))
 	join -v 1 <(seq $2 $3) <(netstat --inet -ln${1:0:1} | grep ^$1 | awk '{print $4}' | cut -d : -f 2 |sort) | shuf | head -n $4
 }
 function get_hostfwd {
@@ -228,7 +229,7 @@ elif [ "$QemuDisplay" = "vnc" ]
 then
 	Vnc=$(get_free_ports tcp 5900 5999 1)
 	[ -z "$Vnc" ] && help "ERR-014: no available vnc port"
-	echo "Vnc ports: $Vnc" 
+	echo "$Image VNC port: $Vnc" 
 	((Vnc=Vnc-5900)) || :
 	QemuDisplay="-display vnc=:$Vnc"
 elif [ "$QemuDisplay" = "none" ]
