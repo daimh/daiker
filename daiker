@@ -15,7 +15,7 @@ function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
 	export LC_ALL=C
 	sleep 0.$(($RANDOM%10))
-	join -v 1 <(seq $2 $3) <(netstat --inet -ln${1:0:1} | grep ^$1 | awk '{print $4}' | cut -d : -f 2 |sort) | shuf | head -n $4
+	join -v 1 <(seq $2 $3) <(ss -4ln${1:0:1} | tail -n +2 | awk '{print $4}' | cut -d : -f 2 |sort) | shuf | head -n $4
 }
 function get_hostfwd {
 	Proto=$1
@@ -289,8 +289,8 @@ then
 else
 	usage
 fi
-QemuBin=$(which qemu-system-x86_64 2>/dev/null)
-[ -n "$QemuBin" ] || QemuBin=$(which qemu-kvm 2>/dev/null)
-[ -n "$QemuBin" ] || QemuBin=$(which /usr/libexec/qemu-kvm 2>/dev/null)
-[ -n "$QemuBin" ] || helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
+QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) ||
+	QemuBin="$(command -v qemu-kvm 2>/dev/null)" ||
+	QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" ||
+	helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
 $QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay $QemuParameters
