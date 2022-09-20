@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-set -euf
-set -o pipefail
+set -Eeufo pipefail
 trap "exit 1" TERM
 function helpme {
 	if [ $# -gt 0 ]
 	then
 		echo -e "$1" 1>&2
 	else
-		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | sed -e "s/#//" | tr -s '\t' 1>&2 #20220605
+		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_"  | grep -- "$(echo $OptShort | tr -d : | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$Command\t\\\|^#[A-Z\t]/")" | sed -e "s/^#$Command//" | tr -d '#' | tr -s '\t'
 	fi
 	kill -s TERM -- -$(cut -d ' ' -f 5 /proc/$$/stat)
 }
@@ -35,7 +34,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20220619
+	helpme 20220920
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -88,9 +87,9 @@ do
 #run	daiker run - run an overlay image
 #convert	daiker convert - convert an overlay image to a base image
 #SYNOPSIS
-#build	daiker build [OPTION]... FILE|/dev/null
-#run	daiker run [OPTION]... FILE|/dev/null
-#convert	daiker convert FILE
+#build	daiker build [OPTION]... [FILE]
+#run	daiker run [OPTION]... [FILE]
+#convert	daiker convert [FILE]
 #EXAMPLE
 #build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
 #run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
