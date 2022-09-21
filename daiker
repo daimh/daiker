@@ -6,7 +6,7 @@ function helpme {
 	then
 		echo -e "$1" 1>&2
 	else
-		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_"  | grep -- "$(echo $OptShort | tr -d : | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$Command\t\\\|^#[A-Z\t]/")" | sed -e "s/^#$Command//" | tr -d '#' | tr -s '\t'
+		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -- "$(echo $OptShort | tr -d : | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$Command\t\\\|^#[A-Z\t]/")" | sed -e "s/^#$Command//" | tr -d '#' | tr -s '\t'
 	fi
 	kill -s TERM -- -$(cut -d ' ' -f 5 /proc/$$/stat)
 }
@@ -34,7 +34,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20220920
+	helpme 20220921
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -76,7 +76,7 @@ UdpPorts=()
 PrvNet=""
 PubNet="-device e1000,netdev=n0 -netdev user,id=n0"
 QemuDisplay=gtk
-QemuParameters=""
+QemuParameters=()
 eval set -- "$OPTS"
 while :
 do
@@ -148,8 +148,8 @@ do
 		-D | --display)	#gtk/vnc/none/nographic, default gtk, which requires X
 			QemuDisplay=$2
 			shift 2 ;;
-		-Q | --qemu-parameters)	#Other qemu parameters. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
-			QemuParameters=$2
+		-Q | --qemu-parameters)	#Other qemu parameters, can be used multiple times. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
+			QemuParameters+=($2)
 			shift 2 ;;
 		-b | --base)	#=Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
 			Base=$2
@@ -228,7 +228,7 @@ elif [ "$QemuDisplay" = "vnc" ]
 then
 	Vnc=$(get_free_ports tcp 5900 5999 1)
 	[ -z "$Vnc" ] && help "ERR-014: no available vnc port"
-	echo "$Image VNC port: $Vnc" 
+	echo "$Image VNC port: $Vnc"
 	((Vnc=Vnc-5900)) || :
 	QemuDisplay="-display vnc=:$Vnc"
 elif [ "$QemuDisplay" = "none" ]
@@ -292,4 +292,4 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) ||
 	QemuBin="$(command -v qemu-kvm 2>/dev/null)" ||
 	QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" ||
 	helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
-$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay $QemuParameters
+$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}
