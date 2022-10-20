@@ -34,7 +34,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20220921
+	helpme 20221020
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -67,14 +67,14 @@ Iso=""
 RamSize=4
 HdSize=50
 Vnc=no
-EnablePrivateNet=""
+EnablePrivateNets=()
 DisablePublicNet=""
 Force=""
 MountDirs=()
 TcpPorts=()
 UdpPorts=()
 PrvNet=""
-PubNet="-device e1000,netdev=n0 -netdev user,id=n0"
+PubNet="-device e1000,netdev=np -netdev user,id=np"
 QemuDisplay=gtk
 QemuParameters=()
 eval set -- "$OPTS"
@@ -94,6 +94,10 @@ do
 #build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
 #run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
 #run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
+#run	
+#run	wget https://dl-cdn.alpinelinux.org/alpine/v3.16/releases/x86_64/alpine-netboot-3.16.2-x86_64.tar.gz
+#run	tar xvfz alpine-netboot-3.16.2-x86_64.tar.gz
+#run	daiker run -Q '-kernel boot/vmlinuz-virt -initrd boot/initramfs-virt -append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main' /dev/null 
 #convert	daiker convert BionicBeaverTest.qcow2
 #OPTIONS
 		-h | --help)	#print help information
@@ -117,8 +121,8 @@ do
 		-d | --disable-public-net)	#disable public net. The machine won't be able to access the Internet
 			DisablePublicNet=YES
 			shift 1 ;;
-		-e | --enable-private-net)	#=random/11:22:33, add a NIC with a specfic or random mac address to share the same private network traffic with other virtual machines that also used '-e'. If it is not "random", the mac address will be prepended with '52:54:00'
-			EnablePrivateNet=$2
+		-e | --enable-private-net)	#=random/11:22:33, add a NIC with a specfic or random mac address to share the same private network traffic with other virtual machines that also used '-e'. The mac address will be prepended with '52:54:00'
+			EnablePrivateNets+=($2)
 			shift 2 ;;
 		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MountDirs+=($2)
@@ -149,7 +153,7 @@ do
 			QemuDisplay=$2
 			shift 2 ;;
 		-Q | --qemu-parameters)	#Other qemu parameters, can be used multiple times. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
-			QemuParameters+=($2)
+			QemuParameters+=("$2")
 			shift 2 ;;
 		-b | --base)	#=Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
 			Base=$2
@@ -192,16 +196,16 @@ do
 	[ -d ${MountDirs[$Idx]} ] || helpme "ERR-020: no such dir ${MountDirs[$Idx]}"
 	Mounts="$Mounts -virtfs local,id=daiker-$Idx,path=${MountDirs[$Idx]},security_model=none,multidevs=remap,mount_tag=daiker-$Idx"
 done
-if [ -n "$EnablePrivateNet" ]
-then
-	if [ "$EnablePrivateNet" = "random" ]
+for ((i=0; i<${#EnablePrivateNets[@]}; i++))
+do
+	if [ "${EnablePrivateNets[$i]}" = "random" ]
 	then
 		MacAddr=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
 	else
-		MacAddr=$(printf "52:54:00:$EnablePrivateNet\n")
+		MacAddr=$(printf "52:54:00:${EnablePrivateNets[$i]}\n")
 	fi
-	PrvNet="-device e1000,netdev=n1,mac=$MacAddr -netdev socket,id=n1,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000))"
-fi
+	PrvNet+=" -device e1000,netdev=n$i,mac=$MacAddr -netdev socket,id=n$i,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i))"
+done
 if [[ ${#TcpPorts[@]} -gt 0 ]]
 then
 	[ "$DisablePublicNet" != "YES" ] || helpme "ERR-006: -T cannot be used with -d"
@@ -292,4 +296,4 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) ||
 	QemuBin="$(command -v qemu-kvm 2>/dev/null)" ||
 	QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" ||
 	helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
-$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}
+bash -c "$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}"
