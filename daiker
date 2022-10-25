@@ -34,7 +34,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20221020
+	helpme 20221024
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -74,7 +74,7 @@ MountDirs=()
 TcpPorts=()
 UdpPorts=()
 PrvNet=""
-PubNet="-device e1000,netdev=np -netdev user,id=np"
+PubNet="-nic user,model=virtio-net-pci"
 QemuDisplay=gtk
 QemuParameters=()
 eval set -- "$OPTS"
@@ -204,7 +204,7 @@ do
 	else
 		MacAddr=$(printf "52:54:00:${EnablePrivateNets[$i]}\n")
 	fi
-	PrvNet+=" -device e1000,netdev=n$i,mac=$MacAddr -netdev socket,id=n$i,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i))"
+	PrvNet+=" -device virtio-net-pci,netdev=n$i,mac=$MacAddr -netdev socket,id=n$i,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i))"
 done
 if [[ ${#TcpPorts[@]} -gt 0 ]]
 then
@@ -296,4 +296,4 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) ||
 	QemuBin="$(command -v qemu-kvm 2>/dev/null)" ||
 	QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" ||
 	helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
-bash -c "$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}"
+$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}
