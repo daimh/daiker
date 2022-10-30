@@ -34,7 +34,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20221024
+	helpme 20221030
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -95,9 +95,9 @@ do
 #run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
 #run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
 #run	
-#run	wget https://dl-cdn.alpinelinux.org/alpine/v3.16/releases/x86_64/alpine-netboot-3.16.2-x86_64.tar.gz
-#run	tar xvfz alpine-netboot-3.16.2-x86_64.tar.gz
-#run	daiker run -Q '-kernel boot/vmlinuz-virt -initrd boot/initramfs-virt -append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main' /dev/null 
+#run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
+#run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
+#run	daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt' /dev/null # Please replace [TAB] with TAB
 #convert	daiker convert BionicBeaverTest.qcow2
 #OPTIONS
 		-h | --help)	#print help information
@@ -296,4 +296,5 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) ||
 	QemuBin="$(command -v qemu-kvm 2>/dev/null)" ||
 	QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" ||
 	helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
+IFS=$' '
 $QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}
