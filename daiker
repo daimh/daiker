@@ -75,7 +75,7 @@ TcpPorts=()
 UdpPorts=()
 PrvNet=""
 PubNet="-nic user,model=virtio-net-pci"
-QemuDisplay=gtk
+[ -z ${DISPLAY+x} ] && QemuDisplay=vnc || QemuDisplay=gtk
 QemuParameters=()
 eval set -- "$OPTS"
 while :
