@@ -222,10 +222,13 @@ then
 	echo "UDP ports: $HostFwd"
 	PubNet="$PubNet,$HostFwd"
 fi
-if [ "$QemuDisplay" = "gtk" ]
+if [ "$Command" = "convert" ]
+then
+	:;
+elif [ "$QemuDisplay" = "gtk" ]
 then
 	set +u
-	[ "$Command" = "convert" -o -n "$DISPLAY" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
+	[ -n "$DISPLAY" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
 	set -u
 	QemuDisplay="-display gtk -vga std"
 elif [ "$QemuDisplay" = "vnc" ]
@@ -255,7 +258,7 @@ then
 fi
 if [ "$Command" = "convert" ]
 then
-	is_not_base_image $Image || helpme "ERR-028: $Image is already a base image"
+	is_not_base_image $Image || helpme "ERR-028: 'qemu-img info $Image' does not report any backing file"
 	read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
 	[ "$Ans" == "$Image" ] || helpme "Quitting"
 	qemu-img rebase -F qcow2 -f qcow2 -b "" $Image
