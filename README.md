@@ -91,9 +91,7 @@ Contributions are always welcome!
 
 Developed by [Manhong Dai](mailto:manhongdai@gmail.com)
 
-Copyright © 2002-2021 University of Michigan
-
-Copyright © 2022 KLA Corporatio
+Copyright © University of Michigan
 
 License [GPLv3+](https://gnu.org/licenses/gpl.html): GNU GPL version 3 or later 
 
@@ -116,3 +114,5 @@ Sohail Nadimi, Senior Engineer, KLA
 Raghuram Bondalapati, Manager, KLA
 
 Vijay Ramachandran, Director, KLA
+
+Jin Huan, Manager, KLA

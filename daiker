@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Author: Manhong Dai, manhongdai@gmail.com
+# License: GPLv3
+# https://github.com/daimh/daiker
 set -Eeufo pipefail
 trap "exit 1" TERM
 function helpme {
@@ -173,7 +176,7 @@ do
 #AUTHOR
 #	Manhong Dai
 #COPYRIGHT
-#	Copyright © 2002-2022 University of Michigan, 2022 KLA.
+#	Copyright © University of Michigan
 #	License GPLv3+: GNU GPL version 3 or later
 #	<https://gnu.org/licenses/gpl.html>.
 #	This is free software: you are free to change and redistribute it.
