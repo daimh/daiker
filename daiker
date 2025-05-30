@@ -1,33 +1,41 @@
 #!/usr/bin/env bash
-# Author: Manhong Dai, manhongdai@gmail.com
-# License: GPLv3
 # https://github.com/daimh/daiker
-set -Eeufo pipefail
+set -fEeuo pipefail
 trap "exit 1" TERM
-function helpme {
+function die {
 	if [ $# -gt 0 ]
 	then
 		echo -e "$1" 1>&2
 	else
-		grep '#' /proc/$$/fd/255 | sed -n '/^#HELPME_START/,/^#HELPME_END/p' | grep -v "^#HELPME_" | grep -- "$(echo $OptShort | tr -d : | sed -e "s/\(.\)/\t-\1 \\\|/g" | sed -e "s/$/^#$Command\t\\\|^#[A-Z\t]/")" | sed -e "s/^#$Command//" | tr -d '#' | tr -s '\t'
+		grep '#' /proc/$$/fd/255 \
+			| sed -n '/^#@ HELP_START/,/^#@ HELP_END/p' \
+			| grep -v "^#@ HELP_" \
+			| sed "s/#@//; s/ \+/ /; s/\t\+/\t/; s/^ //"
 	fi
-	kill -s TERM -- -$(cut -d ' ' -f 5 /proc/$$/stat)
+	kill 0
 }
+
 function get_free_ports {
-	[ "$1" != "tcp" -a "$1" != "udp" ] && helpme "ERR-015: contact developer"
+	[ "$1" != "tcp" -a "$1" != "udp" ] && die "ERR-015: contact developer"
 	export LC_ALL=C
 	sleep 0.$(($RANDOM%10))
-	join -v 1 <(seq $2 $3) <(ss -4ln${1:0:1} | tail -n +2 | awk '{print $4}' | cut -d : -f 2 |sort) | shuf | head -n $4
+	join -v 1 <(seq $2 $3) \
+		<(ss -4ln${1:0:1} | tail -n +2 | awk '{print $4}' | cut -d : -f 2 |sort) \
+		| shuf | head -n $4
 }
+
 function get_hostfwd {
 	Proto=$1
 	shift
 	[ -z "$1" ] && return
 	COUNT=$(echo "$@" | sed -e "s/ /\n/g" | wc -l)
-	paste <(get_free_ports $Proto 40000 50000 $COUNT) <(echo "$@" | sed -e "s/ /\n/g") | awk -v Proto=$Proto '{if (NR>1) printf ","; printf "hostfwd=%s::%s-:%s", Proto, $1, $2}'
+	paste <(get_free_ports $Proto 40000 50000 $COUNT) \
+		<(echo "$@" | sed -e "s/ /\n/g") \
+		| awk -v Proto=$Proto '{if (NR>1) printf ","; \
+			printf "hostfwd=%s::%s-:%s", Proto, $1, $2}'
 }
 function usage {
-	helpme "Usage: daiker <command> [-h] [<args>]
+	die "Usage: daiker <command> [-h] [<args>]
 commands:
 	build
 	run	
@@ -37,13 +45,14 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	helpme 20221030
+	die 20250530
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
 Command=$1
 OptShort="hvc:r:i:de:M:T:U:D:Q:"
-OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
+OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:\
+	,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
 shift || usage
 if [ "$Command" = "build" ]
 then
@@ -62,7 +71,7 @@ elif [ "$Command" = "--version" ]
 then
 	version
 else
-	helpme "ERR-001: unsupported daiker command"
+	die "ERR-001: unsupported daiker command"
 fi
 Cpu=2
 Base=""
@@ -77,95 +86,95 @@ MountDirs=()
 TcpPorts=()
 UdpPorts=()
 PrvNet=""
-PubNet="-nic user,model=virtio-net-pci"
+PubNet="-device virtio-net-pci,netdev=n9 -netdev user,id=n9"
 [ -z ${DISPLAY+x} ] && QemuDisplay=vnc || QemuDisplay=gtk
 QemuParameters=()
 eval set -- "$OPTS"
 while :
 do
 	case "$1" in
-#HELPME_START
-#NAME
-#build	daiker build - build a base image
-#run	daiker run - run an overlay image
-#convert	daiker convert - convert an overlay image to a base image
-#SYNOPSIS
-#build	daiker build [OPTION]... [FILE]
-#run	daiker run [OPTION]... [FILE]
-#convert	daiker convert [FILE]
-#EXAMPLE
-#build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
-#run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
-#run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
-#run	
-#run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
-#run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
-#run	daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt' /dev/null # Please replace [TAB] with TAB
-#convert	daiker convert BionicBeaverTest.qcow2
-#OPTIONS
-		-h | --help)	#print help information
-			helpme ;;
-		--version)	#print version
+#@ HELP_START
+#@ NAME
+#@ build	daiker build - build a base image
+#@ run	daiker run - run an overlay image
+#@ convert	daiker convert - convert an overlay image to a base image
+#@ SYNOPSIS
+#@ build	daiker build [OPTION]... [FILE]
+#@ run	daiker run [OPTION]... [FILE]
+#@ convert	daiker convert [FILE]
+#@ EXAMPLE
+#@ build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
+#@ run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
+#@ run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
+#@ run	
+#@ run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
+#@ run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
+#@ run	daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt' /dev/null # Please replace [TAB] with TAB
+#@ convert	daiker convert BionicBeaverTest.qcow2
+#@ OPTIONS
+		-h | --help)	#@ print help information
+			die ;;
+		--version)	#@ print version
 			version ;;
-		-v )	#verbose output
+		-v )	#@ verbose output
 			set -x
 			shift ;;
-		-c | --cpu)	#=Cpu, number of cpus, default 2
-			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-021: invalid number: -c $2"
+		-c | --cpu)	#@ =Cpu, number of cpus, default 2
+			[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-021: invalid number: -c $2"
 			Cpu=$2
 			shift 2 ;;
-		-r | --ramsize)	#=RamSize, memory size, in GB, default 4
-			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-022: invalid number: -r $2"
+		-r | --ramsize)	#@ =RamSize, memory size, in GB, default 4
+			[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-022: invalid number: -r $2"
 			RamSize=$2
 			shift 2 ;;
-		-i | --iso)	#=Iso file, used as cdrom
+		-i | --iso)	#@ =Iso file, used as cdrom
 			Iso=$2
 			shift 2 ;;
-		-d | --disable-public-net)	#disable public net. The machine won't be able to access the Internet
+		-d | --disable-public-net)	#@ disable public net. The machine won't be able to access the Internet
 			DisablePublicNet=YES
 			shift 1 ;;
-		-e | --enable-private-net)	#=random/11:22:33, add a NIC with a specfic or random mac address to share the same private network traffic with other virtual machines that also used '-e'. The mac address will be prepended with '52:54:00'
+		-e | --enable-private-net)	#@ =random/11:22:33, add a NIC with a specfic or random mac address to share the same private network traffic with other virtual machines that also used '-e'. The mac address will be prepended with '52:54:00'
 			EnablePrivateNets+=($2)
 			shift 2 ;;
-		-M | --mount)	#=DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
+		-M | --mount)	#@ =DIR, allows virtual machine to mount multiple directories on the physical host with some command like 'mount -t 9p -o msize=1048576 daiker-0 /mnt', where 'daiker-0' means the first -m option. Default CentOS or Windows doesn't support this feature
 			MountDirs+=($2)
 			shift 2 ;;
-		-T | --tcp-ports)	#=VMPORT or VMPORT-HOSTPORT, tcp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
+		-T | --tcp-ports)	#@ =VMPORT or VMPORT-HOSTPORT, tcp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-023: invalid number: -T $2"
+				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || die "ERR-023: invalid number: -T $2"
 				PubNet="$PubNet,hostfwd=tcp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-024: invalid number: -T $2"
+				[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-024: invalid number: -T $2"
 				TcpPorts+=($2)
 			fi
 			shift 2 ;;
-		-U | --udp-ports)	#=VMPORT or VMPORT-HOSTPORT, udp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
+		-U | --udp-ports)	#@ =VMPORT or VMPORT-HOSTPORT, udp port HOSTPORT on the host is forwarded to VMPORT on the virtual machine
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || helpme "ERR-026: invalid number: -U $2"
+				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || die "ERR-026: invalid number: -U $2"
 				PubNet="$PubNet,hostfwd=udp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-027: invalid number: -U $2"
+				[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-027: invalid number: -U $2"
 				UdpPorts+=($2)
 			fi
 			shift 2 ;;
-		-D | --display)	#gtk/vnc/none/nographic, default gtk, which requires X
+		-D | --display)	#@ gtk/vnc/none/nographic, default gtk, which requires X
 			QemuDisplay=$2
 			shift 2 ;;
-		-Q | --qemu-parameters)	#Other qemu parameters, can be used multiple times. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
+		-Q | --qemu-parameters)	#@ Other qemu parameters, can be used multiple times. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
 			QemuParameters+=("$2")
 			shift 2 ;;
-		-b | --base)	#=Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
+		-b | --base)	#@ =Base, the base image that a new virtual machine will be created from. Base should be the output file of 'daiker build'. Its actual format is a qemu image without backing file
 			Base=$2
 			shift 2 ;;
-		-F | --force)	#force to run on either a base image to modify it, or an overlay image as base. It could corrupt other overlay images depending on the image being modified. Use at your risk!
+		-F | --force)	#@ force to run on either a base image to modify it, or an overlay image as base. It could corrupt other overlay images depending on the image being modified. Use at your risk!
 			Force=YES
 			shift ;;
-		-H | --hda-size)	#=SIZE, hard drive size, in GB, default 50
-			[ "$2" -eq "$2" ] 2> /dev/null || helpme "ERR-025: invalid number: -H $2"
+		-H | --hda-size)	#@ =SIZE, hard drive size, in GB, default 50
+			[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-025: invalid number: -H $2"
 			HdSize=$2
 			shift 2 ;;
 		--)
@@ -173,20 +182,18 @@ do
 			break ;;
 		*)
 			break ;;
-#AUTHOR
-#	Manhong Dai
-#COPYRIGHT
-#	Copyright © University of Michigan
-#	License GPLv3+: GNU GPL version 3 or later
-#	<https://gnu.org/licenses/gpl.html>.
-#	This is free software: you are free to change and redistribute it.
-#	There is NO WARRANTY, to the extent permitted by law.
-#HELPME_END
+#@ AUTHOR
+#@	Manhong Dai
+#@ COPYRIGHT
+#@	Copyright © University of Michigan 2002-2025
+#@	License MIT
+#@ HELP_END
 	esac
 done
-[ $# -eq 1 ] || helpme "ERR-002: run 'daiker -h/--help' or 'daiker $Command -h/--help'"
+[ $# -eq 1 ] \
+	|| die "ERR-002: run 'daiker -h/--help' or 'daiker $Command -h/--help'"
 Image=$1
-[ ! -z "$Image" ] || helpme "ERR-003: missing Image"
+[ ! -z "$Image" ] || die "ERR-003: missing Image"
 if [ "$Image" = "/dev/null" ]
 then
 	Hda=""
@@ -196,32 +203,39 @@ fi
 Mounts=""
 for ((Idx=0; Idx<${#MountDirs[@]}; Idx++))
 do
-	[ -d ${MountDirs[$Idx]} ] || helpme "ERR-020: no such dir ${MountDirs[$Idx]}"
-	Mounts="$Mounts -virtfs local,id=daiker-$Idx,path=${MountDirs[$Idx]},security_model=none,multidevs=remap,mount_tag=daiker-$Idx"
+	[ -d ${MountDirs[$Idx]} ] || die "ERR-020: no such dir ${MountDirs[$Idx]}"
+	Mounts="$Mounts -virtfs local,id=daiker-$Idx,path=${MountDirs[$Idx]},\
+		security_model=none,multidevs=remap,mount_tag=daiker-$Idx"
 done
 for ((i=0; i<${#EnablePrivateNets[@]}; i++))
 do
 	if [ "${EnablePrivateNets[$i]}" = "random" ]
 	then
-		MacAddr=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) $(( $RANDOM % 256)) $(( $RANDOM % 256)) )
+		MacAddr=$(printf "52:54:00:%02x:%02x:%02x\n" $(( $RANDOM % 256)) \
+			$(( $RANDOM % 256)) $(( $RANDOM % 256)) )
 	else
 		MacAddr=$(printf "52:54:00:${EnablePrivateNets[$i]}\n")
 	fi
-	PrvNet+=" -device virtio-net-pci,netdev=n$i,mac=$MacAddr -netdev socket,id=n$i,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i))"
+	PrvNet+=" -device virtio-net-pci,netdev=n$i,mac=$MacAddr -netdev \
+socket,id=n$i,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).\
+$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i))"
 done
 if [[ ${#TcpPorts[@]} -gt 0 ]]
 then
-	[ "$DisablePublicNet" != "YES" ] || helpme "ERR-006: -T cannot be used with -d"
+	[ "$DisablePublicNet" != "YES" ] || die "ERR-006: -T cannot be used with -d"
 	HostFwd=$( get_hostfwd tcp ${TcpPorts[@]} )
-	[ -n "$HostFwd" ] || helpme "ERR-016: faield to get a idle tcp port on physical machine"
+	[ -n "$HostFwd" ] \
+		|| die "ERR-016: faield to get a idle tcp port on physical machine"
 	echo "TCP ports: $HostFwd"
 	PubNet="$PubNet,$HostFwd"
 fi
 if [[ ${#UdpPorts[@]} -gt 0 ]]
 then
-	[ "$DisablePublicNet" != "YES" ] || helpme "ERR-030: -U cannot be used with -d"
+	[ "$DisablePublicNet" != "YES" ] \
+		|| die "ERR-030: -U cannot be used with -d"
 	HostFwd=$( get_hostfwd udp ${UdpPorts[@]} )
-	[ -n "$HostFwd" ] || helpme "ERR-017: faield to get a idle udp port on physical machine"
+	[ -n "$HostFwd" ] \
+		|| die "ERR-017: faield to get a idle udp port on physical machine"
 	echo "UDP ports: $HostFwd"
 	PubNet="$PubNet,$HostFwd"
 fi
@@ -231,7 +245,8 @@ then
 elif [ "$QemuDisplay" = "gtk" ]
 then
 	set +u
-	[ -n "$DISPLAY" ] || helpme "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
+	[ -n "$DISPLAY" ] \
+		|| die "ERR-004: '-D gtk' needs X, or you might want to try '-D vnc'"
 	set -u
 	QemuDisplay="-display gtk -vga std"
 elif [ "$QemuDisplay" = "vnc" ]
@@ -256,51 +271,66 @@ then
 fi
 if [ -n "$Iso" ]
 then
-	[ -f "$Iso" ] || helpme "ERR-008: no such iso file $Iso"
+	[ -f "$Iso" ] || die "ERR-008: no such iso file $Iso"
 	Iso="-cdrom $Iso"
 fi
 if [ "$Command" = "convert" ]
 then
-	is_not_base_image $Image || helpme "ERR-028: 'qemu-img info $Image' does not report any backing file"
+	is_not_base_image $Image \
+		|| die "ERR-028: 'qemu-img info $Image' does not report any backing file"
 	read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
-	[ "$Ans" == "$Image" ] || helpme "Quitting"
+	[ "$Ans" == "$Image" ] || die "Quitting"
 	qemu-img rebase -F qcow2 -f qcow2 -b "" $Image
 	exit
 elif [ "$Command" = "build" ]
 then
 	if [ "$Image" != "/dev/null" ]
 	then
-		[ ! -f $Image ] || helpme "ERR-005: $Image exists"
-		[ ! -z "$HdSize" ] || helpme "ERR-007: missing -H"
+		[ ! -f $Image ] || die "ERR-005: $Image exists"
+		[ ! -z "$HdSize" ] || die "ERR-007: missing -H"
 		qemu-img create -qf qcow2 $Image ${HdSize}G
 	fi
 elif [ "$Command" = "run" ]
 then
 	if [ -n "$Base" ]
 	then
-		[ -f $Base ] || helpme "ERR-009: no such file $Base"
-		[ "$Force" = "YES" ] || ! is_not_base_image $Base || helpme "ERR-019: $Base is not a base image, please run 'daiker convert $Base' to convert it first"
+		[ -f $Base ] || die "ERR-009: no such file $Base"
+		[ "$Force" = "YES" ] || ! is_not_base_image $Base \
+			|| die "ERR-019: $Base is not a base image, please run 'daiker \
+				convert $Base' to convert it first"
 		DirName=$(dirname $Image)
 		if [ -f $Image ]
 		then
-			Backing=$(qemu-img info $Image | grep '^backing file: ' | sed -e "s/^backing file: //; s/ (actual path: .*//")
-			[ "$(realpath $DirName/$Backing)" = "$(realpath $Base)" ] || helpme "ERR-010: overlay image '$Image' already exists, but its base image is '$Backing', instead of '-b $Base'. Either delete the file '$Image' or don't use '-b $Base' in the command."
+			Backing=$(qemu-img info $Image | grep '^backing file: ' \
+				| sed -e "s/^backing file: //; s/ (actual path: .*//")
+			[ "$(realpath $DirName/$Backing)" = "$(realpath $Base)" ] \
+				|| die "ERR-010: overlay image '$Image' already exists, but \
+					its base image is '$Backing', instead of '-b $Base'. \
+					Either delete the file '$Image' or don't use '-b $Base' \
+					in the command."
 		else
-			[ -d $DirName ] || helpme "ERR-029: no such directory $DirName"
-			qemu-img create -qf qcow2 -b $(realpath --relative-to=$DirName $Base) -F qcow2 $Image
+			[ -d $DirName ] || die "ERR-029: no such directory $DirName"
+			qemu-img create -qf qcow2 -b $(realpath \
+				--relative-to=$DirName $Base) -F qcow2 $Image
 		fi
 	elif [ "$Image" != "/dev/null" ]
 	then
-		[ -f $Image ] || helpme "ERR-011: no such file $Image"
-		! fuser $Image || helpme "ERR-012: $Image is in use by the process above"
-		[ "$Force" = "YES" ] || is_not_base_image $Image || helpme "ERR-013: $Image is a base image, please run 'daiker run -b $Image new-image.qcow2' to create a new overlay image, or use -F at your own risk!"
+		[ -f $Image ] || die "ERR-011: no such file $Image"
+		! fuser $Image \
+			|| die "ERR-012: $Image is in use by the process above"
+		[ "$Force" = "YES" ] || is_not_base_image $Image \
+			|| die "ERR-013: $Image is a base image, please run 'daiker run \
+				-b $Image new-image.qcow2' to create a new overlay image, or \
+				use -F at your own risk!"
 	fi
 else
 	usage
 fi
-QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) ||
-	QemuBin="$(command -v qemu-kvm 2>/dev/null)" ||
-	QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" ||
-	helpme "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
+QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) \
+	|| QemuBin="$(command -v qemu-kvm 2>/dev/null)" \
+	|| QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" \
+	|| die "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
 IFS=$' '
-$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet -smp $Cpu -m ${RamSize}G $Hda $Iso $PubNet $PrvNet $Mounts $QemuDisplay ${QemuParameters[@]}
+$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet \
+	-smp $Cpu -m ${RamSize}G $Hda $Iso $PrvNet $PubNet $Mounts $QemuDisplay \
+	${QemuParameters[@]}
