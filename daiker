@@ -5,7 +5,7 @@ trap "exit 1" TERM
 function die {
 	if [ $# -gt 0 ]
 	then
-		echo -e "$1" 1>&2
+		echo -e "$1" | tr "	" " " | tr -s " " 1>&2
 	else
 		grep '#' /proc/$$/fd/255 \
 			| sed -n '/^#@ HELP_START/,/^#@ HELP_END/p' \
@@ -45,7 +45,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	die 20250530
+	die 20250720
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -252,7 +252,7 @@ then
 elif [ "$QemuDisplay" = "vnc" ]
 then
 	Vnc=$(get_free_ports tcp 5900 5999 1)
-	[ -z "$Vnc" ] && help "ERR-014: no available vnc port"
+	[ -z "$Vnc" ] && die "ERR-014: no available vnc port"
 	echo "$Image VNC port: $Vnc"
 	((Vnc=Vnc-5900)) || :
 	QemuDisplay="-display vnc=:$Vnc"
@@ -263,7 +263,12 @@ elif [ "$QemuDisplay" = "nographic" ]
 then
 	QemuDisplay="-nographic"
 else
-	help "ERR-018: invalid argument $QemuDisplay for '-display'. Try '-h'"
+	set +e
+	let Vnc="$QemuDisplay" 2> /dev/null
+	set -e
+	[ "$Vnc" = "$QemuDisplay" ] \
+		|| die "ERR-018: -D should be gtk/vnc/none/nographic or a Vnc display number"
+	QemuDisplay="-display vnc=:$Vnc"
 fi
 if [ "$DisablePublicNet" = "YES" ]
 then
