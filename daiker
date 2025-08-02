@@ -45,7 +45,7 @@ function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
 function version {
-	die 20250720
+	die 20250802
 }
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
@@ -161,7 +161,7 @@ do
 				UdpPorts+=($2)
 			fi
 			shift 2 ;;
-		-D | --display)	#@ gtk/vnc/none/nographic, default gtk, which requires X
+		-D | --display)	#@ gtk/vnc/[VncDisplayNum]/none/nographic/, default gtk, which requires X
 			QemuDisplay=$2
 			shift 2 ;;
 		-Q | --qemu-parameters)	#@ Other qemu parameters, can be used multiple times. For example, to use a usb device, run "sudo chown $USER /dev/bus/usb/003/006; daiker run -Q "-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6" test.qcow2
