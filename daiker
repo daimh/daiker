@@ -3,11 +3,13 @@
 set -fEeuo pipefail
 trap "exit 1" TERM
 function die {
-	if [ $# -gt 0 ]
+	if [ "$1" != help ]
 	then
 		echo -e "$1" | tr "	" " " | tr -s " " 1>&2
 	else
-		grep '#' /proc/$$/fd/255 \
+		grep "#@" /proc/$$/fd/255 \
+			| grep -e "#@@$2" -e "#@ " -e "#@	" \
+			| sed "s/#@@$2/#@/" \
 			| sed -n '/^#@ HELP_START/,/^#@ HELP_END/p' \
 			| grep -v "^#@ HELP_" \
 			| sed "s/#@//; s/ \+/ /; s/\t\+/\t/; s/^ //"
@@ -34,6 +36,7 @@ function get_hostfwd {
 		| awk -v Proto=$Proto '{if (NR>1) printf ","; \
 			printf "hostfwd=%s::%s-:%s", Proto, $1, $2}'
 }
+
 function usage {
 	die "Usage: daiker <command> [-h] [<args>]
 commands:
@@ -41,12 +44,15 @@ commands:
 	run	
 	convert"
 }
+
 function is_not_base_image {
 	qemu-img info $1 | grep -q "backing file:"
 }
+
 function version {
-	die 20250802
+	die 20251128
 }
+
 [ $# -gt 0 ] || usage
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || usage
 Command=$1
@@ -95,25 +101,24 @@ do
 	case "$1" in
 #@ HELP_START
 #@ NAME
-#@ build	daiker build - build a base image
-#@ run	daiker run - run an overlay image
-#@ convert	daiker convert - convert an overlay image to a base image
-#@ SYNOPSIS
-#@ build	daiker build [OPTION]... [FILE]
-#@ run	daiker run [OPTION]... [FILE]
-#@ convert	daiker convert [FILE]
+#@@build	daiker build - build a base image
+#@@run	daiker run - run an overlay image
+#@@convert	daiker convert - convert an overlay image to a base image
+#@@ SYNOPSIS
+#@@build	daiker build [OPTION]... [FILE]
+#@@run	daiker run [OPTION]... [FILE]
+#@@convert	daiker convert [FILE]
 #@ EXAMPLE
-#@ build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
-#@ run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
-#@ run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
-#@ run	
-#@ run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
-#@ run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
-#@ run	daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt' /dev/null # Please replace [TAB] with TAB
-#@ convert	daiker convert BionicBeaverTest.qcow2
+#@@build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso BionicBeaverBase.qcow2
+#@@run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
+#@@run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
+#@@run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
+#@@run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
+#@@run	daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16/main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt' /dev/null # Please replace [TAB] with TAB
+#@@convert	daiker convert BionicBeaverTest.qcow2
 #@ OPTIONS
 		-h | --help)	#@ print help information
-			die ;;
+			die help $Command;;
 		--version)	#@ print version
 			version ;;
 		-v )	#@ verbose output
@@ -184,9 +189,10 @@ do
 			break ;;
 #@ AUTHOR
 #@	Manhong Dai
-#@ COPYRIGHT
-#@	Copyright © University of Michigan 2002-2025
-#@	License MIT
+#@ COPYRIGHT 
+#@	© University of Michigan 2002-2025
+#@ LICENSE
+#@	MIT
 #@ HELP_END
 	esac
 done
