@@ -50,7 +50,7 @@ function is_not_base_image {
 }
 
 function version {
-	die 20251128
+	die 20251208
 }
 
 [ $# -gt 0 ] || usage
@@ -224,7 +224,7 @@ do
 	fi
 	PrvNet+=" -device virtio-net-pci,netdev=n$i,mac=$MacAddr -netdev \
 socket,id=n$i,mcast=230.$(($(id -u) % 239)).$(($(id -u) % 241)).\
-$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i))"
+$(($(id -u) % 251)):$(($(id -u) % 9973 + 30000+$i)),localaddr=127.0.0.1"
 done
 if [[ ${#TcpPorts[@]} -gt 0 ]]
 then
