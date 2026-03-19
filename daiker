@@ -14,7 +14,10 @@ function die {
 			| grep -v "^#@ HELP_" \
 			| sed "s/#@//; s/ \+/ /; s/\t\+/\t/; s/^ //"
 	fi
-	kill 0
+	Pgid=$(ps -o pgid= $$ | tr -d " ")
+	[ $(cat /proc/$Pgid/task/$Pgid/children | wc -w) -lt 2 ] \
+		&& exit 1 \
+		|| kill 0
 }
 
 function get_free_ports {
@@ -50,7 +53,7 @@ function is_not_base_image {
 }
 
 function version {
-	die 20251208
+	die 20260319
 }
 
 [ $# -gt 0 ] || usage
@@ -148,10 +151,13 @@ do
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || die "ERR-023: invalid number: -T $2"
+				[ "$HPORT" -eq "$HPORT" ] \
+					&& [ "$VPORT" -eq "$VPORT" ] 2> /dev/null \
+					|| die "ERR-023: invalid number: -T $2"
 				PubNet="$PubNet,hostfwd=tcp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-024: invalid number: -T $2"
+				[ "$2" -eq "$2" ] 2> /dev/null \
+					|| die "ERR-024: invalid number: -T $2"
 				TcpPorts+=($2)
 			fi
 			shift 2 ;;
@@ -159,10 +165,13 @@ do
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] && [ "$VPORT" -eq "$VPORT" ] 2> /dev/null || die "ERR-026: invalid number: -U $2"
+				[ "$HPORT" -eq "$HPORT" ] \
+					&& [ "$VPORT" -eq "$VPORT" ] 2> /dev/null \
+					|| die "ERR-026: invalid number: -U $2"
 				PubNet="$PubNet,hostfwd=udp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-027: invalid number: -U $2"
+				[ "$2" -eq "$2" ] 2> /dev/null \
+					|| die "ERR-027: invalid number: -U $2"
 				UdpPorts+=($2)
 			fi
 			shift 2 ;;
@@ -179,7 +188,8 @@ do
 			Force=YES
 			shift ;;
 		-H | --hda-size)	#@ =SIZE, hard drive size, in GB, default 50
-			[ "$2" -eq "$2" ] 2> /dev/null || die "ERR-025: invalid number: -H $2"
+			[ "$2" -eq "$2" ] 2> /dev/null \
+				|| die "ERR-025: invalid number: -H $2"
 			HdSize=$2
 			shift 2 ;;
 		--)
@@ -273,7 +283,7 @@ else
 	let Vnc="$QemuDisplay" 2> /dev/null
 	set -e
 	[ "$Vnc" = "$QemuDisplay" ] \
-		|| die "ERR-018: -D should be gtk/vnc/none/nographic or a Vnc display number"
+		|| die "ERR-018: -D should be gtk/vnc/none/nographic or a Vnc number"
 	QemuDisplay="-display vnc=:$Vnc"
 fi
 if [ "$DisablePublicNet" = "YES" ]
@@ -288,7 +298,7 @@ fi
 if [ "$Command" = "convert" ]
 then
 	is_not_base_image $Image \
-		|| die "ERR-028: 'qemu-img info $Image' does not report any backing file"
+		|| die "ERR-028: 'qemu-img info $Image' does not show any backing file"
 	read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
 	[ "$Ans" == "$Image" ] || die "Quitting"
 	qemu-img rebase -F qcow2 -f qcow2 -b "" $Image
