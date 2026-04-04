@@ -1,85 +1,136 @@
-# daiker, a teeny-tiny but potent virtual machine tool
+# daiker — a tiny but powerful virtual machine tool
 
-Unlike Docker, daiker doesn't need any special privilege. A regular Linux account with or without X is enough.
+**daiker** is a lightweight wrapper around QEMU/KVM that makes it easy to 
+create, run, and manage virtual machines — without needing root privileges 
+(beyond loading the KVM module).
 
-Unlike Singularity, daiker is a full virtualization just like a real machine. You can even run Windows on it.
+- Unlike **Docker**, it requires no special privileges. A regular Linux 
+user account (with or without X) is sufficient.
+
+- Unlike **Singularity/Apptainer**, it provides **full hardware 
+virtualization**. You can even run Windows on it.
+
+---
 
 ## Prerequisites
+
+1. Enable KVM (for good perfomance):
+
+```bash
+modprobe kvm
+lsmod | grep kvm
 ```
-lsmod |grep kvm #verify kvm kernel module
-which qemu-system-x86_64 #verify if qemu is installed
+
+2. Verify QEMU is installed:
+
+```bash
+which qemu-system-x86_64 || ls /usr/libexec/qemu-kvm
 ```
 
 ## Installation
-```
+
+```bash
 wget https://raw.githubusercontent.com/daimh/daiker/master/daiker
 chmod +x daiker
-mv daiker ~/bin/ # or any directory in PATH
+mv daiker ~/bin/ # or any directory in your $PATH
 ```
 
-## Examples
-This example shows daiker automatically install Linux virtual machines without either user interaction or root privilege. CentOS 7 and OpenSUSE 15.3 were tested on 2022-01-04.
-```
-cd examples
-make
-cd var
-daiker run -b centos-base.qcow2 centos-test.qcow2 
-daiker run -b opensuse-base.qcow2 opensuse-test.qcow2 
+## Quick Start
+
+### 1. Build a base image (Alpine Linux example)
+
+```bash
+# Download the ISO:
+wget https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/alpine-standard-3.23.3-x86_64.iso
+
+# Build base image (Non-RHEL systems)
+daiker build -i alpine-standard-3.23.3-x86_64.iso base.qcow2 
+
+# on RHEL-based systems (use VNC):
+daiker build -i alpine-standard-3.23.3-x86_64.iso base.qcow2 -D 99 &
+vncviewer :99
 ```
 
-## Test steps. [Videos](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
+Inside the VM:
+- Login as `root`
+- Run `setup-alpine`
+- Keep pressing `Enter` to accept default, except:
+    - "Which disk would you like to use": sda
+    - "How would you like to use it": sys
+    - "WARNING: Erase the disks above and continue": y
+- After installation: `poweroff`
 
-1. build a base image, here we use Alpine Linux as an example
-```
-wget http://dl-cdn.alpinelinux.org/alpine/v3.12/releases/x86_64/alpine-standard-3.12.1-x86_64.iso
-daiker build -i alpine-standard-3.12.1-x86_64.iso alpine-base.qcow2 
-# #inside the guest machine
-# setup-alpine
-# poweroff
-```
-2. create a few new guest machines
-```
-daiker run -b alpine-base.qcow2 test1.qcow2 
-daiker run -b alpine-base.qcow2 test2.qcow2 
-```
-3. boot the new machine if it was poweroff
-```
-daiker run test1.qcow2 
+### 2. Create overlay image.
+
+```bash
+daiker run -b base.qcow2 overlay.qcow2 
 ```
 
-## Advanced usage
-* allow outside to access SSH service on a guest machine. [Video](https://youtu.be/lhzlTCWviHo)
+3. Re-run the VM 
+
+```bash
+daiker run overlay.qcow2 
 ```
+Tip: On RHEL-based systems, use VNC
+
+[Videos](https://www.youtube.com/watch?v=nG_ql6Mptmo&list=PLcUreuc9RezIrppGh-AEYfV-FOdcE5RHY)
+
+## Advanced Usage
+
+- Forward a random host port to guest SSH
+
+[Video](https://youtu.be/lhzlTCWviHo)
+
+```bash
 daiker run -T 22 test1.qcow2
 ```
-* mount a directory on the host to the guest machine
+
+- Forward three fixed host ports to guest SSH, RDP and VNC
+  - 2299 to SSH 
+  - 3399 to RDP 
+  - 5999 to VNC
+```bash
+daiker run -T 22-2299 -T 3389-3399 -D 99 test1.qcow2 
 ```
+
+- Mount host directory into guest VM
+
+```bash
 daiker run -M /tmp test1.qcow2 
 # #inside the guest machine
 # mount -t 9p daiker-0 /mnt
 ```
-* build a cluster of guest machines that can talk to each other. [Video](https://youtu.be/nuahSihAbno) Note '-P' in the video is replaced by '-e'
+
+- Create a private network between VMs
+[Video](https://youtu.be/nuahSihAbno) Note '-P' in the video is replaced by '-e'
+
+  - start two VMs
+```bash
+daiker run -e vm1.qcow2
+daiker run -e vm2.qcow2 
 ```
-daiker run -e test1.qcow2
-daiker run -e test2.qcow2 
-# #inside guest machine test1
-# ip l set eth1 up
-# ip a a 192.168.8.1/24 dev eth1
-# ping 192.168.8.2
-# #inside guest machine test2
-# ip l set eth1 up
-# ip a a 192.168.8.2/24 dev eth1
+
+  - Inside each VM, configure the second NIC:
+```bash
+ip l set eth1 up
+ip a a 192.168.8.1/24 dev eth1 # on vm1
+ip a a 192.168.8.2/24 dev eth1 # on vm2
 ```
-* attach a block device to the host
-```
-cat /proc/partitions # please make sure it is the right device!!! Assume it is /dev/sdz in the commands below
+
+* Attach a block device to the VM
+
+```bash
+cat /proc/partitions # Assume it is /dev/sdz in the commands below
 sudo chown -R $USER /dev/sdz
 daiker run -Q "-drive file=/dev/sdz,format=raw" windows.qcow2
 ```
 
 ## Help
-```
+
+```bash
 daiker -h
+daiker build -h
+daiker run -h
 ```
 append '-v' to any sub-commands to check out the backend qemu commands
 
