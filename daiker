@@ -78,7 +78,7 @@ function is_not_base_image {
 }
 
 function version {
-	die 20260328
+	die 20260406
 }
 
 [ $# -gt 0 ] || die
@@ -98,8 +98,8 @@ then
 	OPTS=$(getopt -o $OptShort --long "$OptLong,base:,force" -n daiker -- "$@")
 elif [ "$Command" = "convert" ]
 then
-	OptShort="hv"
-	OptLong="help,version"
+	OptShort="hvF"
+	OptLong="help,version,force"
 	OPTS=$(getopt -o $OptShort --long $OptLong -n daiker -- "$@")
 elif [ "$Command" = "--version" ]
 then
@@ -361,8 +361,11 @@ if [ "$Command" = "convert" ]
 then
 	is_not_base_image $Image \
 		|| die "ERR-028: 'qemu-img info $Image' does not show any backing file"
-	read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
-	[ "$Ans" == "$Image" ] || die "Quitting"
+	if [ "$Force" != YES ]
+	then
+		read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
+		[ "$Ans" == "$Image" ] || die "Quitting"
+	fi
 	qemu-img rebase -F qcow2 -f qcow2 -b "" $Image
 	exit
 elif [ "$Command" = "build" ]
