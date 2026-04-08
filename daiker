@@ -36,11 +36,8 @@ COMMANDS
         Build a base image (similar to a Docker image)
 
     run
-        Create and run an overlay image based on a base image
-        (similar to a Docker container)
-
-    convert
-        Convert an overlay image into a base image
+        Create and run an overlay image based on a base or overlay
+		image (similar to a Docker container)
 
 OPTIONS
     -h, --help
@@ -73,12 +70,8 @@ function get_hostfwd {
 			printf "hostfwd=%s::%s-:%s", Proto, $1, $2}'
 }
 
-function is_not_base_image {
-	qemu-img info $1 | grep -q "backing file:"
-}
-
 function version {
-	die 20260406
+	die 20260408
 }
 
 [ $# -gt 0 ] || die
@@ -94,13 +87,8 @@ then
 	OPTS=$(getopt -o $OptShort --long "$OptLong,hda-size:" -n daiker -- "$@")
 elif [ "$Command" = "run" ]
 then
-	OptShort="${OptShort}b:F"
-	OPTS=$(getopt -o $OptShort --long "$OptLong,base:,force" -n daiker -- "$@")
-elif [ "$Command" = "convert" ]
-then
-	OptShort="hvF"
-	OptLong="help,version,force"
-	OPTS=$(getopt -o $OptShort --long $OptLong -n daiker -- "$@")
+	OptShort="${OptShort}b:"
+	OPTS=$(getopt -o $OptShort --long "$OptLong,base:" -n daiker -- "$@")
 elif [ "$Command" = "--version" ]
 then
 	version
@@ -115,7 +103,6 @@ HdSize=50
 Vnc=no
 EnablePrivateNets=()
 DisablePublicNet=""
-Force=""
 MountDirs=()
 TcpPorts=()
 UdpPorts=()
@@ -131,11 +118,9 @@ do
 #@ NAME
 #@@build	daiker build - build a base image
 #@@run	daiker run - run an overlay image
-#@@convert	daiker convert - convert an overlay image to a base image
 #@ SYNOPSIS
 #@@build	daiker build [OPTION]... [FILE]
 #@@run	daiker run [OPTION]... [FILE]
-#@@convert	daiker convert [FILE]
 #@ EXAMPLE
 #@@build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso \
 #@@build	    BionicBeaverBase.qcow2
@@ -150,7 +135,6 @@ do
 #@@run	    /main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge\
 #@@run	    /releases/x86_64/netboot/modloop-virt' /dev/null
 #@@run	    # Please replace [TAB] with TAB
-#@@convert	daiker convert BionicBeaverTest.qcow2
 #@ OPTIONS
 		-h | --help) #@
 			#@ Display help information
@@ -243,13 +227,8 @@ do
 			#@ 'daiker build' (a QEMU image without a backing file)
 			Base=$2
 			shift 2 ;;
-		-F | --force) #@
-			#@ Force operation on a base image. It corrupts backing
-			#@ image.  Use at your risk!!!
-			Force=YES
-			shift ;;
 		-H | --hda-size) #@ =SIZE
-			#@ Disk size in GB (default: 50)
+			#@ Disk size in GB (default: 50), Only used with the 'build' command
 			[ "$2" -eq "$2" ] 2> /dev/null \
 				|| die "ERR-025: invalid number: -H $2"
 			HdSize=$2
@@ -317,10 +296,7 @@ then
 	echo "UDP ports: $HostFwd"
 	PubNet="$PubNet,$HostFwd"
 fi
-if [ "$Command" = "convert" ]
-then
-	:;
-elif [ "$QemuDisplay" = "gtk" ]
+if [ "$QemuDisplay" = "gtk" ]
 then
 	set +u
 	[ -n "$DISPLAY" ] \
@@ -357,18 +333,7 @@ then
 	[ -f "$Iso" ] || die "ERR-008: no such iso file $Iso"
 	Iso="-cdrom $Iso"
 fi
-if [ "$Command" = "convert" ]
-then
-	is_not_base_image $Image \
-		|| die "ERR-028: 'qemu-img info $Image' does not show any backing file"
-	if [ "$Force" != YES ]
-	then
-		read -p "convert \"$Image\" to base image? type \"$Image\" to confirm: " Ans
-		[ "$Ans" == "$Image" ] || die "Quitting"
-	fi
-	qemu-img rebase -F qcow2 -f qcow2 -b "" $Image
-	exit
-elif [ "$Command" = "build" ]
+if [ "$Command" = "build" ]
 then
 	if [ "$Image" != "/dev/null" ]
 	then
@@ -381,9 +346,6 @@ then
 	if [ -n "$Base" ]
 	then
 		[ -f $Base ] || die "ERR-009: no such file $Base"
-		[ "$Force" = "YES" ] || ! is_not_base_image $Base \
-			|| die "ERR-019: $Base is not a base image, please run 'daiker \
-				convert $Base' to convert it first"
 		DirName=$(dirname $Image)
 		if [ -f $Image ]
 		then
@@ -396,6 +358,9 @@ then
 					in the command."
 		else
 			[ -d $DirName ] || die "ERR-029: no such directory $DirName"
+			[ ! -w $Base ] \
+				|| chmod a-w $Base \
+				|| echo "Warning: Could not set $Base to read-only. Continuing."
 			qemu-img create -qf qcow2 -b $(realpath \
 				--relative-to=$DirName $Base) -F qcow2 $Image
 		fi
@@ -404,10 +369,6 @@ then
 		[ -f $Image ] || die "ERR-011: no such file $Image"
 		! fuser $Image \
 			|| die "ERR-012: $Image is in use by the process above"
-		[ "$Force" = "YES" ] || is_not_base_image $Image \
-			|| die "ERR-013: $Image is a base image, please run 'daiker run \
-				-b $Image new-image.qcow2' to create a new overlay image, or \
-				use -F at your own risk!"
 	fi
 else
 	die
