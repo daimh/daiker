@@ -5,44 +5,119 @@ trap "exit 1" TERM
 
 function die {
 	# 20260328
-	if [ "$#" -eq 2 ]
-	then
-		grep -e "#@@$2" -e "#@ " -e "#@	" -e "#@$" /proc/$$/fd/255 \
-			| sed -n '/^#@ HELP_START/,/^#@ HELP_END/p' \
-			| grep -v "^#@ HELP_" \
-			| sed "
-				s/^#@@$2//;
-				s/^#@//;
-				s/) #@$//;
-				s/) #@ =/=/;
-				s/) #@ /\n\t\t/;
-				s/\t#@ /\t/;
-				s/^\t\t/\t/;
-				s/^ //" \
-			| sed "
-				s/\t/    /g;
-				s/ | /, /"
-	elif [ "$#" -eq 1 ]
+	local UsageBuild="Build a base image (similar to a Docker image)"
+    local UsageRun="Create and run an overlay image based on a existing base 
+        or overlay image (similar to a Docker container)"
+	local UsageInspect="Inspect relationships between images"
+	local OptBRI="OPTIONS
+    -h, --help
+        Show this help message
+    --version
+        Show version information
+    -v
+        Enable verbose output"
+	local OptBR="
+    -c, --cpu=CPU
+        Number of CPUs (default: 2)
+    -r, --ramsize=RAMSIZE
+        Memory size in GB (default: 4)
+    -i, --iso=FILE
+        ISO file to use as as the CD-ROM
+    -d, --disable-public-net
+        Disable public networking. The VM will not have Internet access.
+    -e, --enable-private-net=random|11:22:33
+        Add a NIC with a specfic or random MAC address to share a private
+        network with other VMs using this option. The MAC address will be
+        prefixed with '52:54:00'.
+    -M, --mount=DIR
+        Mount one or more host directories inside the VM. Example:
+            mount -t 9p -o msize=1048576 daiker-0 /mnt
+        where 'daiker-0' refers to the first -M option.
+        Note: Default CentOS and Windows images may not support this
+        feature.
+    -T, --tcp-ports=VMPORT| VMPORT-HOSTPORT
+        Forward TCP port HOSTPORT on the host to VMPORT on the VM
+    -U, --udp-ports=VMPORT| VMPORT-HOSTPORT
+        Forward UDP port HOSTPORT on the host to VMPORT on the VM
+    -D, --display=gtk|vnc|[VncDisplayNum]|none|nographic
+        Default: gtk (requires X server)
+    -Q, --qemu-parameters=PARAMS
+        Additional QEMU parameters (can be used multiple times).
+        Example:
+          sudo chown \$USER /dev/bus/usb/003/006
+          daiker run -Q \ 
+            \"-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6\" \ 
+            test.qcow2"
+	local OptB="
+    -H, --hda-size=SIZE
+        Disk size in GB (default: 50), Only used with the 'build'"
+	local OptR="
+    -b, --base=BASE
+        A backing image used to create a new overlay VM. can be the 
+		output of 'daiker build' or 'daiker run'"
+	local Copyright="AUTHOR
+    Manhong Dai
+
+COPYRIGHT
+    © University of Michigan 2002-2026
+
+LICENSE
+    MIT"
+	# PRINTF
+	if [ "$#" -eq 1 ]
 	then
 		printf "$1\n"
-	else
-		printf "daiker — A Docker-like VM tool based on QEMU
-
+	elif [ "$#" -eq 0 ]
+	then
+		printf "daiker — A Docker-like VM tool based on QEMU and KVM\n
 USAGE
-    daiker <command> [OPTIONS] [ARGS]
-
+    daiker <command> [options]... [file]...\n
 COMMANDS
     build
-        Build a base image (similar to a Docker image)
-
+        %s\n
     run
-        Create and run an overlay image based on a base or overlay
-		image (similar to a Docker container)
-
+        %s\n
+    inspect
+        %s\n
 OPTIONS
     -h, --help
-        Show help information
-"
+        Show this help information\n\n%s\n" \
+			"$UsageBuild" "$UsageRun" "$UsageInspect" "$Copyright"
+	elif [ "$2" = build ]
+	then
+		printf "daiker build — %s\n
+SYNOPSIS
+    daiker build [options]... [file]\n
+EXAMPLES
+    daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso ubuntu18.qcow2\n
+%s%s%s\n\n%s\n" "$UsageBuild" "$OptBRI" "$OptBR" "$OptB" "$Copyright"
+	elif [ "$2" = run ]
+	then
+		printf "daiker run — %s\n
+SYNOPSIS
+    daiker run [options]... [file]\n
+EXAMPLES
+    daiker run -b ubuntu18.qcow2 ubuntu18.qcow2
+    daiker run -T 22 -T 80 ubuntu18.qcow2
+    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \ 
+        /vmlinuz-virt
+    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \ 
+        /initramfs-virt
+    daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q \ 
+        '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16 \ 
+        /main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge \ 
+        /releases/x86_64/netboot/modloop-virt' \ 
+        /dev/null # Please replace [TAB] with TAB\n
+%s%s%s\n\n%s\n" "$UsageRun" "$OptBRI" "$OptBR" "$OptR" "$Copyright"
+	elif [ "$2" = inspect ]
+	then
+		printf "daiker inspect — %s\n
+SYNOPSIS
+    daiker inspect [options]... [file]...\n
+EXAMPLES
+    daiker inspect .
+    daiker inspect *.qcow2 images/\n\n%s\n\n%s\n" \
+		"$UsageInspect" "$OptBRI" "$Copyright"
 	fi
 	Pgid=$(ps -o pgid= $$ | tr -d " ")
 	[ $(cat /proc/$Pgid/task/$Pgid/children | wc -w) -lt 2 ] \
@@ -71,7 +146,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260408
+	die 20260425
 }
 
 [ $# -gt 0 ] || die
@@ -89,9 +164,15 @@ elif [ "$Command" = "run" ]
 then
 	OptShort="${OptShort}b:"
 	OPTS=$(getopt -o $OptShort --long "$OptLong,base:" -n daiker -- "$@")
+elif [ "$Command" = "inspect" ]
+then
+	OPTS=$(getopt -o "hv" --long "help,version" -n daiker -- "$@")
 elif [ "$Command" = "--version" ]
 then
 	version
+elif [ "$Command" = "--help" -o "$Command" = "-h" ]
+then
+	die
 else
 	die "ERR-001: unsupported daiker command"
 fi
@@ -114,74 +195,36 @@ eval set -- "$OPTS"
 while :
 do
 	case "$1" in
-#@ HELP_START
-#@ NAME
-#@@build	daiker build - build a base image
-#@@run	daiker run - run an overlay image
-#@ SYNOPSIS
-#@@build	daiker build [OPTION]... [FILE]
-#@@run	daiker run [OPTION]... [FILE]
-#@ EXAMPLE
-#@@build	daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso \
-#@@build	    BionicBeaverBase.qcow2
-#@@run	daiker run -b BionicBeaverBase.qcow2 BionicBeaverTest.qcow2
-#@@run	daiker run -T 22 -T 80 BionicBeaverTest.qcow2
-#@@run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot\
-#@@run	    /vmlinuz-virt
-#@@run	wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot\
-#@@run	    /initramfs-virt
-#@@run	daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q \
-#@@run	    '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16\
-#@@run	    /main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge\
-#@@run	    /releases/x86_64/netboot/modloop-virt' /dev/null
-#@@run	    # Please replace [TAB] with TAB
-#@ OPTIONS
-		-h | --help) #@
-			#@ Display help information
+		-h | --help)
 			die help $Command;;
-		--version) #@
-			#@ Display version information
+		--version)
 			version ;;
-		-v ) #@
-			#@ Enable verbose output
+		-v )
 			set -x
 			shift ;;
-		-c | --cpu) #@ =CPU
-			#@ Number of CPUs (default: 2)
+		-c | --cpu)
 			[ "$2" -eq "$2" ] 2> /dev/null \
 				|| die "ERR-021: invalid number: -c $2"
 			Cpu=$2
 			shift 2 ;;
-		-r | --ramsize) #@ =RAMSIZE
-			#@ Memory size in GB (default: 4)
+		-r | --ramsize)
 			[ "$2" -eq "$2" ] 2> /dev/null \
 				|| die "ERR-022: invalid number: -r $2"
 			RamSize=$2
 			shift 2 ;;
-		-i | --iso) #@ =FILE
-			#@ ISO file to use as as the CD-ROM
+		-i | --iso)
 			Iso=$2
 			shift 2 ;;
-		-d | --disable-public-net) #@
-			#@ Disable public networking. The VM will not have Internet access.
+		-d | --disable-public-net)
 			DisablePublicNet=YES
 			shift 1 ;;
-		-e | --enable-private-net) #@ =random|11:22:33
-			#@ Add a NIC with a specfic or random MAC address to share a private
-			#@ network with other VMs using this option. The MAC address will be
-			#@ prefixed with '52:54:00'.
+		-e | --enable-private-net)
 			EnablePrivateNets+=($2)
 			shift 2 ;;
-		-M | --mount) #@ =DIR
-			#@ Mount one or more host directories inside the VM. Example:
-			#@     mount -t 9p -o msize=1048576 daiker-0 /mnt
-			#@ where 'daiker-0' refers to the first -M option.
-			#@ Note: Default CentOS and Windows images may not support this
-			#@ feature.
+		-M | --mount)
 			MountDirs+=($2)
 			shift 2 ;;
-		-T | --tcp-ports) #@ =VMPORT| VMPORT-HOSTPORT
-			#@ Forward TCP port HOSTPORT on the host to VMPORT on the VM
+		-T | --tcp-ports)
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
@@ -195,8 +238,7 @@ do
 				TcpPorts+=($2)
 			fi
 			shift 2 ;;
-		-U | --udp-ports) #@ =VMPORT| VMPORT-HOSTPORT
-			#@ Forward UDP port HOSTPORT on the host to VMPORT on the VM
+		-U | --udp-ports)
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
@@ -210,25 +252,16 @@ do
 				UdpPorts+=($2)
 			fi
 			shift 2 ;;
-		-D | --display) #@ =gtk|vnc|[VncDisplayNum]|none|nographic
-			#@ Default: gtk (requires X server)
+		-D | --display)
 			QemuDisplay=$2
 			shift 2 ;;
-		-Q | --qemu-parameters) #@ =QEMUPARAMS
-			#@ Additional QEMU parameters (can be used multiple times).
-			#@ Exampel:
-			#@     sudo chown $USER /dev/bus/usb/003/006
-			#@     daiker run -Q "-device usb-ehci,id=ehci \
-			#@         -device usb-host,hostbus=3,hostaddr=6" test.qcow2
+		-Q | --qemu-parameters)
 			QemuParameters+=("$2")
 			shift 2 ;;
-		-b | --base) #@ =BASE
-			#@ Base image used to create a new VM. Must be the output of
-			#@ 'daiker build' (a QEMU image without a backing file)
+		-b | --base)
 			Base=$2
 			shift 2 ;;
-		-H | --hda-size) #@ =SIZE
-			#@ Disk size in GB (default: 50), Only used with the 'build' command
+		-H | --hda-size)
 			[ "$2" -eq "$2" ] 2> /dev/null \
 				|| die "ERR-025: invalid number: -H $2"
 			HdSize=$2
@@ -238,17 +271,59 @@ do
 			break ;;
 		*)
 			break ;;
-#@ AUTHOR
-#@	Manhong Dai
-#@ COPYRIGHT 
-#@	© University of Michigan 2002-2026
-#@ LICENSE
-#@	MIT
-#@ HELP_END
 	esac
 done
-[ $# -eq 1 ] \
-	|| die "ERR-002: run 'daiker -h/--help' or 'daiker $Command -h/--help'"
+if [ "$Command" = "inspect" ]
+then
+	[ $# -gt 0 ] || die "ERR-013: run 'daiker $Command -h/--help'"
+	find $@ -type f -exec bash -c "file {} | grep 'QEMU QCOW'" \; \
+	| while IFS=: read FName Desc
+	do
+		Backing="."
+		FName=$(realpath --relative-to=. $FName)
+		if echo $Desc | grep -q 'has backing file (path'
+		then	
+			Backing=$(realpath --relative-to=. $(dirname $FName)/$(
+				echo $Desc | sed "s/.*has backing file (path //; s/).*//"
+			) )
+			[ -e "$Backing" ] || Backing="$Backing (MISSING)"
+		fi
+		echo -e "$Backing\t$FName"
+	done | sort -u | awk -F "\t" '
+{
+    parent = $1
+    child = $2
+    children[parent] = children[parent] " " child
+    nodes[parent] = 1
+    nodes[child] = 1
+    has_parent[child] = 1
+}
+END {
+	PROCINFO["sorted_in"] = "@ind_str_asc"
+    for (n in nodes) {
+        if (!(n in has_parent)) {
+            print n
+            print_tree(n, "", 1)
+        }
+    }
+}
+function print_tree(node, prefix, is_root, arr, i, count, child, new_prefix) {
+    count = split(children[node], arr, " ")
+    for (i in arr) {
+        child = arr[i]
+        if (i == count) {
+            print prefix "└── " child
+            new_prefix = prefix "    "
+        } else {
+            print prefix "├── " child
+            new_prefix = prefix "│   "
+        }
+        print_tree(child, new_prefix, 0)
+    }
+}'
+	exit
+fi
+[ $# -eq 1 ] || die "ERR-002: run 'daiker $Command -h/--help'"
 Image=$1
 [ ! -z "$Image" ] || die "ERR-003: missing Image"
 if [ "$Image" = "/dev/null" ]
