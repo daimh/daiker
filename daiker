@@ -146,7 +146,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260425
+	die 20260430
 }
 
 [ $# -gt 0 ] || die
@@ -288,39 +288,40 @@ then
 			) )
 			[ -e "$Backing" ] || Backing="$Backing (MISSING)"
 		fi
-		echo -e "$Backing\t$FName"
+		Running=$( fuser $FName 2>&1 | cut -d : -f 2- || : )
+		printf "%s\t%s\t%s\n" "$Backing" "$FName" "$Running"
 	done | sort -u | awk -F "\t" '
 {
-    parent = $1
-    child = $2
-    children[parent] = children[parent] " " child
-    nodes[parent] = 1
-    nodes[child] = 1
-    has_parent[child] = 1
+	parent = $1
+	child = $2
+	if ($3 != "") is_running[child] = ":" $3
+	children[parent] = children[parent] " " child
+	nodes[parent] = 1
+	nodes[child] = 1
+	has_parent[child] = 1
 }
 END {
 	PROCINFO["sorted_in"] = "@ind_str_asc"
-    for (n in nodes) {
-        if (!(n in has_parent)) {
-            print n
-            print_tree(n, "", 1)
-        }
-    }
+	for (n in nodes) {
+		if (n in has_parent) continue
+		print n
+		print_tree(n, "", 1)
+	}
 }
 function print_tree(node, prefix, is_root, arr, i, count, child, new_prefix) {
-    count = split(children[node], arr, " ")
-    for (i in arr) {
-        child = arr[i]
-        if (i == count) {
-            print prefix "└── " child
-            new_prefix = prefix "    "
-        } else {
-            print prefix "├── " child
-            new_prefix = prefix "│   "
-        }
-        print_tree(child, new_prefix, 0)
-    }
-}'
+	count = split(children[node], arr, " ")
+	for (i in arr) {
+		child = arr[i]
+		if (i == count) {
+			printf "%s└── %s\t%s\n", prefix, child, is_running[child]
+			new_prefix = prefix "    "
+		} else {
+			printf "%s├── %s\t%s\n", prefix, child, is_running[child]
+			new_prefix = prefix "│   "
+		}
+		print_tree(child, new_prefix, 0)
+	}
+}' | column -ts $'\t'
 	exit
 fi
 [ $# -eq 1 ] || die "ERR-002: run 'daiker $Command -h/--help'"
