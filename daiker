@@ -6,7 +6,7 @@ trap "exit 1" TERM
 function die {
 	# 20260328
 	local UsageBuild="Build a base image (similar to a Docker image)"
-    local UsageRun="Create and run an overlay image based on a existing base 
+    local UsageRun="Create and run an overlay image based on a existing base
         or overlay image (similar to a Docker container)"
 	local UsageInspect="Inspect relationships between images"
 	local OptBRI="OPTIONS
@@ -45,16 +45,19 @@ function die {
         Additional QEMU parameters (can be used multiple times).
         Example:
           sudo chown \$USER /dev/bus/usb/003/006
-          daiker run -Q \ 
-            \"-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6\" \ 
+          daiker run -Q \\
+            \"-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6\" \\
             test.qcow2"
 	local OptB="
     -H, --hda-size=SIZE
         Disk size in GB (default: 50), Only used with the 'build'"
 	local OptR="
     -b, --base=BASE
-        A backing image used to create a new overlay VM. can be the 
+        A backing image used to create a new overlay VM. can be the
 		output of 'daiker build' or 'daiker run'"
+	local OptI="
+    -t, --timeout=SECONDS
+        kill the find command if it is still running after this duration"
 	local Copyright="AUTHOR
     Manhong Dai
 
@@ -99,14 +102,14 @@ SYNOPSIS
 EXAMPLES
     daiker run -b ubuntu18.qcow2 ubuntu18.qcow2
     daiker run -T 22 -T 80 ubuntu18.qcow2
-    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \ 
+    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \\
         /vmlinuz-virt
-    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \ 
+    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \\
         /initramfs-virt
-    daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q \ 
-        '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16 \ 
-        /main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge \ 
-        /releases/x86_64/netboot/modloop-virt' \ 
+    daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q \\
+        '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16 \\
+        /main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge \\
+        /releases/x86_64/netboot/modloop-virt' \\
         /dev/null # Please replace [TAB] with TAB\n
 %s%s%s\n\n%s\n" "$UsageRun" "$OptBRI" "$OptBR" "$OptR" "$Copyright"
 	elif [ "$2" = inspect ]
@@ -116,8 +119,8 @@ SYNOPSIS
     daiker inspect [options]... [file]...\n
 EXAMPLES
     daiker inspect .
-    daiker inspect *.qcow2 images/\n\n%s\n\n%s\n" \
-		"$UsageInspect" "$OptBRI" "$Copyright"
+    daiker inspect -t 10 *.qcow2 images/\n\n%s%s\n\n%s\n" \
+		"$UsageInspect" "$OptBRI" "$OptI" "$Copyright"
 	fi
 	Pgid=$(ps -o pgid= $$ | tr -d " ")
 	[ $(cat /proc/$Pgid/task/$Pgid/children | wc -w) -lt 2 ] \
@@ -146,7 +149,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260430
+	die 20260508
 }
 
 [ $# -gt 0 ] || die
@@ -166,7 +169,7 @@ then
 	OPTS=$(getopt -o $OptShort --long "$OptLong,base:" -n daiker -- "$@")
 elif [ "$Command" = "inspect" ]
 then
-	OPTS=$(getopt -o "hv" --long "help,version" -n daiker -- "$@")
+	OPTS=$(getopt -o "hvt:" --long "help,version,timeout:" -n daiker -- "$@")
 elif [ "$Command" = "--version" ]
 then
 	version
@@ -191,6 +194,7 @@ PrvNet=""
 PubNet="-device virtio-net-pci,netdev=n9 -netdev user,id=n9"
 [ -z ${DISPLAY+x} ] && QemuDisplay=vnc || QemuDisplay=gtk
 QemuParameters=()
+Timeout=10
 eval set -- "$OPTS"
 while :
 do
@@ -203,12 +207,12 @@ do
 			set -x
 			shift ;;
 		-c | --cpu)
-			[ "$2" -eq "$2" ] 2> /dev/null \
+			[[ $2 =~ ^[0-9]+$ ]] \
 				|| die "ERR-021: invalid number: -c $2"
 			Cpu=$2
 			shift 2 ;;
 		-r | --ramsize)
-			[ "$2" -eq "$2" ] 2> /dev/null \
+			[[ $2 =~ ^[0-9]+$ ]] \
 				|| die "ERR-022: invalid number: -r $2"
 			RamSize=$2
 			shift 2 ;;
@@ -217,7 +221,7 @@ do
 			shift 2 ;;
 		-d | --disable-public-net)
 			DisablePublicNet=YES
-			shift 1 ;;
+			shift ;;
 		-e | --enable-private-net)
 			EnablePrivateNets+=($2)
 			shift 2 ;;
@@ -228,12 +232,12 @@ do
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] \
-					&& [ "$VPORT" -eq "$VPORT" ] 2> /dev/null \
+				[[ $HPORT =~ ^[0-9]+$ ]] \
+					&& [[ $VPORT =~ ^[0-9]+$ ]] \
 					|| die "ERR-023: invalid number: -T $2"
 				PubNet="$PubNet,hostfwd=tcp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null \
+				[[ $2 =~ ^[0-9]+$ ]] \
 					|| die "ERR-024: invalid number: -T $2"
 				TcpPorts+=($2)
 			fi
@@ -242,12 +246,12 @@ do
 			if [[ "$2" == *"-"* ]]
 			then
 				IFS=- read VPORT HPORT <<< "$2"
-				[ "$HPORT" -eq "$HPORT" ] \
-					&& [ "$VPORT" -eq "$VPORT" ] 2> /dev/null \
+				[[ $HPORT =~ ^[0-9]+$ ]] \
+					&& [[ $VPORT =~ ^[0-9]+$ ]] \
 					|| die "ERR-026: invalid number: -U $2"
 				PubNet="$PubNet,hostfwd=udp::$HPORT-:$VPORT"
 			else
-				[ "$2" -eq "$2" ] 2> /dev/null \
+				[[ $2 =~ ^[0-9]+$ ]] \
 					|| die "ERR-027: invalid number: -U $2"
 				UdpPorts+=($2)
 			fi
@@ -262,9 +266,14 @@ do
 			Base=$2
 			shift 2 ;;
 		-H | --hda-size)
-			[ "$2" -eq "$2" ] 2> /dev/null \
+			[[ $2 =~ ^[0-9]+$ ]] \
 				|| die "ERR-025: invalid number: -H $2"
 			HdSize=$2
+			shift 2 ;;
+		-t | --timeout)
+			[[ $2 =~ ^[0-9]+$ ]] \
+				|| die "ERR-032: invalid number: -t $2"
+			Timeout=$2
 			shift 2 ;;
 		--)
 			shift
@@ -276,8 +285,13 @@ done
 if [ "$Command" = "inspect" ]
 then
 	[ $# -gt 0 ] || die "ERR-013: run 'daiker $Command -h/--help'"
-	find $@ -type f -exec bash -c "file {} | grep 'QEMU QCOW'" \; \
-	| while IFS=: read FName Desc
+	List=$(mktemp)
+	trap 'rm -f $List' EXIT
+	timeout $Timeout find $@ -type f -exec bash -c \
+			"file {} | grep 'QEMU QCOW'" \; > $List \
+		|| die "ERR-033: Search timed out after $Timeout second. Try \
+increasing it with the -t."
+	cat $List | while IFS=: read FName Desc
 	do
 		Backing="."
 		FName=$(realpath --relative-to=. $FName)
