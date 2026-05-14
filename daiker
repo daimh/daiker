@@ -149,7 +149,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260508
+	die 20260513
 }
 
 [ $# -gt 0 ] || die
@@ -304,38 +304,69 @@ increasing it with the -t."
 		fi
 		Running=$( fuser $FName 2>&1 | cut -d : -f 2- || : )
 		printf "%s\t%s\t%s\n" "$Backing" "$FName" "$Running"
-	done | sort -u | awk -F "\t" '
-{
-	parent = $1
-	child = $2
-	if ($3 != "") is_running[child] = ":" $3
-	children[parent] = children[parent] " " child
-	nodes[parent] = 1
-	nodes[child] = 1
-	has_parent[child] = 1
-}
-END {
-	PROCINFO["sorted_in"] = "@ind_str_asc"
-	for (n in nodes) {
-		if (n in has_parent) continue
-		print n
-		print_tree(n, "", 1)
-	}
-}
-function print_tree(node, prefix, is_root, arr, i, count, child, new_prefix) {
-	count = split(children[node], arr, " ")
-	for (i in arr) {
-		child = arr[i]
-		if (i == count) {
-			printf "%s└── %s\t%s\n", prefix, child, is_running[child]
-			new_prefix = prefix "    "
-		} else {
-			printf "%s├── %s\t%s\n", prefix, child, is_running[child]
-			new_prefix = prefix "│   "
-		}
-		print_tree(child, new_prefix, 0)
-	}
-}' | column -ts $'\t'
+	done | sort -u | python -c '
+import sys
+
+
+def get_width_and_pids(children, print_pids, my_pids, node, depth):
+    child_pids = set()
+    max_width = depth * 4 + len(node)
+    for child in children.get(node, []):
+        width, pids = get_width_and_pids(
+            children, print_pids, my_pids, child, depth + 1
+        )
+        child_pids |= pids
+        if width > max_width:
+            max_width = width
+    print_pids[node] = set(my_pids.get(node, [])) - child_pids
+    return max_width, my_pids.get(node, set()) | child_pids
+
+
+def print_tree(children, print_pids, node, prefix, width):
+    for i, child in enumerate(sorted(children.get(node, []))):
+        if i == len(children[node]) - 1:
+            branch, connector = "└", " "
+        else:
+            branch, connector = "├", "│"
+        left = f"{prefix}{branch}── {child}"
+        pids = " ".join(print_pids.get(child, []))
+        if pids == "":
+            print(left)
+        else:
+            print(f"{left:<{width}} : {pids}")
+        print_tree(
+            children, print_pids, child, f"{prefix}{connector}   ", width
+        )
+
+
+def main():
+    children = {}
+    has_parent = []
+    my_pids = {}
+    print_pids = {}
+    for ln in sys.stdin:
+        parent, child, pids = ln.split("\t")
+        my_pids[child] = set(pids.split())
+        children.setdefault(parent, []).append(child)
+        has_parent.append(child)
+    has_parent = set(has_parent)
+    max_width = 0
+    for node in children.keys():
+        if node not in has_parent:
+            width, _ = get_width_and_pids(
+                children, print_pids, my_pids, node, 0
+            )
+            if width > max_width:
+                max_width = width
+    for node in children.keys():
+        if node not in has_parent:
+            print(node)
+            print_tree(children, print_pids, node, "", max_width)
+
+
+if __name__ == "__main__":
+    main()
+'
 	exit
 fi
 [ $# -eq 1 ] || die "ERR-002: run 'daiker $Command -h/--help'"
