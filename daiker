@@ -4,19 +4,59 @@ set -fEeuo pipefail
 trap "exit 1" TERM
 
 function die {
-	# 20260328
-	local UsageBuild="Build a base image (similar to a Docker image)"
-    local UsageRun="Create and run an overlay image based on a existing base
-        or overlay image (similar to a Docker container)"
-	local UsageInspect="Inspect relationships between images"
-	local OptBRI="OPTIONS
+    local UsageRun="Run a VM with qcow2 images"
+	local UsageInspect="Inspect relationships between qcow2 images"
+	local OptRI="OPTIONS
     -h, --help
         Show this help message
     --version
         Show version information
     -v
         Enable verbose output"
-	local OptBR="
+	local Copyright="AUTHOR
+    Manhong Dai
+COPYRIGHT
+    © University of Michigan 2002-2026
+LICENSE
+    MIT"
+	# PRINTF
+	if [ "$#" -eq 1 ]
+	then
+		printf "$1\n"
+	elif [ "$#" -eq 0 ]
+	then
+		printf "daiker — A Docker-like VM tool based on QEMU and KVM
+USAGE
+    daiker <command> [options]... [file]...
+COMMANDS
+    run
+        %s
+    inspect
+        %s
+OPTIONS
+    -h, --help
+        Show this help information
+%s\n" "$UsageRun" "$UsageInspect" "$Copyright"
+	elif [ "$2" = run ]
+	then
+		printf "daiker run — %s
+SYNOPSIS
+    daiker run [options]... [file]... [file=size]... [file:backing]...
+EXAMPLES
+    ####### Installation with Ubuntu Iso #######
+    daiker run -i ubuntu-18.04.5-live-server-amd64.iso ubuntu18.qcow2=50G
+    daiker run overlay.qcow2:ubuntu18.qcow2
+    daiker run -T 22 -T 80 overlay.qcow2
+    #### Cloud image with Rocky Cloud Image ####
+    wget https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+    sudo virt-customize -a Rocky-9-GenericCloud-Base.latest.x86_64.qcow2 \\
+        --root-password password:daiker
+    daiker run overlay.qcow2:Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+    ########### Netboot with Alpine ############
+    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
+    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
+    daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/edge/main'\$\'\\\t\''modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt'
+OPTIONS
     -c, --cpu=CPU
         Number of CPUs (default: 2)
     -r, --ramsize=RAMSIZE
@@ -47,80 +87,20 @@ function die {
           sudo chown \$USER /dev/bus/usb/003/006
           daiker run -Q \\
             \"-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6\" \\
-            test.qcow2"
-	local OptB="
-    -H, --hda-size=SIZE
-        Disk size in GB (default: 50), Only used with the 'build'"
-	local OptR="
-    -b, --base=BASE
-        A backing image used to create a new overlay VM. can be the
-		output of 'daiker build' or 'daiker run'"
-	local OptI="
-    -t, --timeout=SECONDS
-        kill the find command if it is still running after this duration"
-	local Copyright="AUTHOR
-    Manhong Dai
-
-COPYRIGHT
-    © University of Michigan 2002-2026
-
-LICENSE
-    MIT"
-	# PRINTF
-	if [ "$#" -eq 1 ]
-	then
-		printf "$1\n"
-	elif [ "$#" -eq 0 ]
-	then
-		printf "daiker — A Docker-like VM tool based on QEMU and KVM\n
-USAGE
-    daiker <command> [options]... [file]...\n
-COMMANDS
-    build
-        %s\n
-    run
-        %s\n
-    inspect
-        %s\n
-OPTIONS
-    -h, --help
-        Show this help information\n\n%s\n" \
-			"$UsageBuild" "$UsageRun" "$UsageInspect" "$Copyright"
-	elif [ "$2" = build ]
-	then
-		printf "daiker build — %s\n
-SYNOPSIS
-    daiker build [options]... [file]\n
-EXAMPLES
-    daiker build -H 50 -i ubuntu-18.04.5-live-server-amd64.iso ubuntu18.qcow2\n
-%s%s%s\n\n%s\n" "$UsageBuild" "$OptBRI" "$OptBR" "$OptB" "$Copyright"
-	elif [ "$2" = run ]
-	then
-		printf "daiker run — %s\n
-SYNOPSIS
-    daiker run [options]... [file]\n
-EXAMPLES
-    daiker run -b ubuntu18.qcow2 ubuntu18.qcow2
-    daiker run -T 22 -T 80 ubuntu18.qcow2
-    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \\
-        /vmlinuz-virt
-    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot \\
-        /initramfs-virt
-    daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q \\
-        '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.16 \\
-        /main[TAB]modloop=https://dl-cdn.alpinelinux.org/alpine/edge \\
-        /releases/x86_64/netboot/modloop-virt' \\
-        /dev/null # Please replace [TAB] with TAB\n
-%s%s%s\n\n%s\n" "$UsageRun" "$OptBRI" "$OptBR" "$OptR" "$Copyright"
+            test.qcow2
+%s\n" "$UsageRun" "$Copyright"
 	elif [ "$2" = inspect ]
 	then
-		printf "daiker inspect — %s\n
+		printf "daiker inspect — %s
 SYNOPSIS
-    daiker inspect [options]... [file]...\n
+    daiker inspect [options]... [file]...
 EXAMPLES
     daiker inspect .
-    daiker inspect -t 10 *.qcow2 images/\n\n%s%s\n\n%s\n" \
-		"$UsageInspect" "$OptBRI" "$OptI" "$Copyright"
+    daiker inspect -t 10 *.qcow2 images/
+OPTIONS
+    -t, --timeout=SECONDS
+        kill the find command if it is still running after this duration
+%s\n" "$UsageInspect" "$Copyright"
 	fi
 	Pgid=$(ps -o pgid= $$ | tr -d " ")
 	[ $(cat /proc/$Pgid/task/$Pgid/children | wc -w) -lt 2 ] \
@@ -149,24 +129,19 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260513
+	die 20260516
 }
 
 [ $# -gt 0 ] || die
 [ "$1" != "-h" -a "$1" != "--help" -a "$1" != "help" ] || die
 Command=$1
-OptShort="hvc:r:i:de:M:T:U:D:Q:"
-OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:\
-	,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
 shift || die
-if [ "$Command" = "build" ]
+if [ "$Command" = "run" ]
 then
-	OptShort="${OptShort}H:"
-	OPTS=$(getopt -o $OptShort --long "$OptLong,hda-size:" -n daiker -- "$@")
-elif [ "$Command" = "run" ]
-then
-	OptShort="${OptShort}b:"
-	OPTS=$(getopt -o $OptShort --long "$OptLong,base:" -n daiker -- "$@")
+	OptShort="hvc:r:i:de:M:T:U:D:Q:"
+	OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:\
+,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
+	OPTS=$(getopt -o $OptShort --long "$OptLong" -n daiker -- "$@")
 elif [ "$Command" = "inspect" ]
 then
 	OPTS=$(getopt -o "hvt:" --long "help,version,timeout:" -n daiker -- "$@")
@@ -180,10 +155,8 @@ else
 	die "ERR-001: unsupported daiker command"
 fi
 Cpu=2
-Base=""
 Iso=""
 RamSize=4
-HdSize=50
 Vnc=no
 EnablePrivateNets=()
 DisablePublicNet=""
@@ -262,14 +235,6 @@ do
 		-Q | --qemu-parameters)
 			QemuParameters+=("$2")
 			shift 2 ;;
-		-b | --base)
-			Base=$2
-			shift 2 ;;
-		-H | --hda-size)
-			[[ $2 =~ ^[0-9]+$ ]] \
-				|| die "ERR-025: invalid number: -H $2"
-			HdSize=$2
-			shift 2 ;;
 		-t | --timeout)
 			[[ $2 =~ ^[0-9]+$ ]] \
 				|| die "ERR-032: invalid number: -t $2"
@@ -291,19 +256,19 @@ then
 			"file {} | grep 'QEMU QCOW'" \; > $List \
 		|| die "ERR-033: Search timed out after $Timeout second. Try \
 increasing it with the -t."
-	cat $List | while IFS=: read FName Desc
+	cat $List | while IFS=: read Filename Desc
 	do
 		Backing="."
-		FName=$(realpath --relative-to=. $FName)
+		Filename=$(realpath --relative-to=. $Filename)
 		if echo $Desc | grep -q 'has backing file (path'
 		then	
-			Backing=$(realpath --relative-to=. $(dirname $FName)/$(
+			Backing=$(realpath --relative-to=. $(dirname $Filename)/$(
 				echo $Desc | sed "s/.*has backing file (path //; s/).*//"
 			) )
 			[ -e "$Backing" ] || Backing="$Backing (MISSING)"
 		fi
-		Running=$( fuser $FName 2>&1 | cut -d : -f 2- || : )
-		printf "%s\t%s\t%s\n" "$Backing" "$FName" "$Running"
+		Running=$( fuser $Filename 2>&1 | cut -d : -f 2- || : )
+		printf "%s\t%s\t%s\n" "$Backing" "$Filename" "$Running"
 	done | sort -u | python -c '
 import sys
 
@@ -369,15 +334,9 @@ if __name__ == "__main__":
 '
 	exit
 fi
-[ $# -eq 1 ] || die "ERR-002: run 'daiker $Command -h/--help'"
-Image=$1
-[ ! -z "$Image" ] || die "ERR-003: missing Image"
-if [ "$Image" = "/dev/null" ]
-then
-	Hda=""
-else
-	Hda="-hda $Image"
-fi
+[ "$Command" = "run" ] \
+	|| die "ERR-002: run 'daiker $Command -h/--help'"
+Name=""
 Mounts=""
 for ((Idx=0; Idx<${#MountDirs[@]}; Idx++))
 do
@@ -454,51 +413,60 @@ then
 	[ -f "$Iso" ] || die "ERR-008: no such iso file $Iso"
 	Iso="-cdrom $Iso"
 fi
-if [ "$Command" = "build" ]
-then
-	if [ "$Image" != "/dev/null" ]
-	then
-		[ ! -f $Image ] || die "ERR-005: $Image exists"
-		[ ! -z "$HdSize" ] || die "ERR-007: missing -H"
-		qemu-img create -qf qcow2 $Image ${HdSize}G
-	fi
-elif [ "$Command" = "run" ]
-then
-	if [ -n "$Base" ]
-	then
-		[ -f $Base ] || die "ERR-009: no such file $Base"
-		DirName=$(dirname $Image)
-		if [ -f $Image ]
+Drives=""
+for Arg in "$@"
+do
+	if [[ "$Arg" == *"="* ]]; then
+		Filename=${Arg%%=*}
+		Size=${Arg#*=}
+		if [ -f "$Filename" ]
 		then
-			Backing=$(qemu-img info $Image | grep '^backing file: ' \
-				| sed -e "s/^backing file: //; s/ (actual path: .*//")
-			[ "$(realpath $DirName/$Backing)" = "$(realpath $Base)" ] \
-				|| die "ERR-010: overlay image '$Image' already exists, but \
-					its base image is '$Backing', instead of '-b $Base'. \
-					Either delete the file '$Image' or don't use '-b $Base' \
-					in the command."
+			SizeInArg=$(numfmt --from=iec $Size)
+			SizeInFile=$(qemu-img info $Filename | grep "^virtual size:" \
+				| sed -E 's/.*\(([0-9]+) bytes\).*/\1/')
+			[ "$SizeInArg" = "$SizeInFile" ] \
+				|| echo "Warning: specified size for \"$Filename\" \
+atches"
 		else
-			[ -d $DirName ] || die "ERR-029: no such directory $DirName"
-			[ ! -w $Base ] \
-				|| chmod a-w $Base \
-				|| echo "Warning: Could not set $Base to read-only. Continuing."
-			qemu-img create -qf qcow2 -b $(realpath \
-				--relative-to=$DirName $Base) -F qcow2 $Image
+			qemu-img create -qf qcow2 $Filename $Size
 		fi
-	elif [ "$Image" != "/dev/null" ]
+	elif [[ "$Arg" == *":"* ]]; then
+		Filename=${Arg%%:*}
+		Backing=${Arg#*:}
+		[ -f "$Backing" ] || die "ERR-019: no such a backing image $Backing"
+		if [ ! -f "$Filename" ]
+		then
+			Dirname=$(dirname $Filename)
+			[ -d $Dirname ] || die "ERR-029: no such directory $Dirname"
+			qemu-img create -qf qcow2 -b $(realpath \
+				--relative-to=$Dirname $Backing) -F qcow2 $Filename
+		elif [ "$Backing" != \
+			"$(qemu-img info $Filename | grep "^backing file:" \
+				| cut -c 15- )" \
+		]
+		then
+			die "ERR-010: The specified backing image for \"$Filename\" is \
+\"$Backing\", but command \"qemu-img info $Filename\" reports a differnt \
+backing image."
+		fi
+		[ ! -w $Backing ] \
+			|| chmod a-w $Backing \
+			|| echo "Warning: Could not set $Backing to read-only. Continuing."
+	elif [ -f "$Arg" ]
 	then
-		[ -f $Image ] || die "ERR-011: no such file $Image"
-		! fuser $Image \
-			|| die "ERR-012: $Image is in use by the process above"
+		Filename=$Arg
+	else
+		die "ERR-034: no such a file \"$Arg\""
 	fi
-else
-	die
-fi
+	[ -n "$Name" ] || Name=$Filename
+	Drives="$Drives -drive file=$Filename,format=qcow2"
+done
+[ -s "$Name" ] || Name=NULL
 QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) \
 	|| QemuBin="$(command -v qemu-kvm 2>/dev/null)" \
 	|| QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" \
 	|| die "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
 IFS=$' '
-$QemuBin -name $Image -cpu host -enable-kvm -usb -device usb-tablet \
-	-smp $Cpu -m ${RamSize}G $Hda $Iso $PrvNet $PubNet $Mounts $QemuDisplay \
+$QemuBin -name $Name -cpu host -enable-kvm -usb -device usb-tablet \
+	-smp $Cpu -m ${RamSize}G $Drives $Iso $PrvNet $PubNet $Mounts $QemuDisplay \
 	${QemuParameters[@]}
