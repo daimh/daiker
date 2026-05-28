@@ -129,7 +129,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260521
+	die 20260527
 }
 
 [ $# -gt 0 ] || die
@@ -434,15 +434,15 @@ atches"
 		Filename=${Arg%%:*}
 		Backing=${Arg#*:}
 		[ -f "$Backing" ] || die "ERR-019: no such a backing image $Backing"
+		Dirname=$(dirname $Filename)
+		[ -d $Dirname ] || die "ERR-029: no such directory $Dirname"
+		Backing=$(realpath --relative-to=$Dirname $Backing)
 		if [ ! -f "$Filename" ]
 		then
-			Dirname=$(dirname $Filename)
-			[ -d $Dirname ] || die "ERR-029: no such directory $Dirname"
-			qemu-img create -qf qcow2 -b $(realpath \
-				--relative-to=$Dirname $Backing) -F qcow2 $Filename
+			qemu-img create -qf qcow2 -b "$Backing" -F qcow2 $Filename
 		elif [ "$Backing" != \
-			"$(qemu-img info $Filename | grep "^backing file:" \
-				| cut -c 15- )" \
+			"$(qemu-img info "$Filename" | grep "^backing file:" \
+				| cut -d " " -f 3 )" \
 		]
 		then
 			die "ERR-010: The specified backing image for \"$Filename\" is \
