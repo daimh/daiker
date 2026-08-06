@@ -3,7 +3,7 @@
 set -fEeuo pipefail
 
 function die {
-    local UsageRun="Run a VM with qcow2 images"
+	local UsageRun="Run a VM with qcow2 images"
 	local UsageInspect="Inspect relationships between qcow2 images"
 	local OptRI="OPTIONS
     -h, --help
@@ -74,14 +74,14 @@ OPTIONS
         where 'daiker-0' refers to the first -M option.
         Note: Default CentOS and Windows images may not support this
         feature.
-    -T, --tcp-ports=VMPORT| VMPORT-HOSTPORT
+    -T, --tcp-port=VMPORT|VMPORT:HOSTPORT
         Forward TCP port HOSTPORT on the host to VMPORT on the VM
-    -U, --udp-ports=VMPORT| VMPORT-HOSTPORT
+    -U, --udp-port=VMPORT|VMPORT:HOSTPORT
         Forward UDP port HOSTPORT on the host to VMPORT on the VM
     -D, --display=gtk|vnc|[VncDisplayNum]|none|nographic
         Default: gtk (requires X server)
-    -Q, --qemu-parameters=PARAMS
-        Additional QEMU parameters (can be used multiple times).
+    -Q, --qemu-parameter=PARAMS
+        Additional QEMU parameter (can be used multiple times).
         Example:
           sudo chown \$USER /dev/bus/usb/003/006
           daiker run -Q \\
@@ -128,7 +128,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260527
+	die 20260805
 }
 
 [ $# -gt 0 ] || die
@@ -139,7 +139,7 @@ if [ "$Command" = "run" ]
 then
 	OptShort="hvc:r:i:de:M:T:U:D:Q:"
 	OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:\
-,mount:,tcp-ports:,udp-ports:display:,qemu-parameters"
+,mount:,tcp-port:,udp-port:display:,qemu-parameter"
 	OPTS=$(getopt -o $OptShort --long "$OptLong" -n daiker -- "$@")
 elif [ "$Command" = "inspect" ]
 then
@@ -200,10 +200,10 @@ do
 		-M | --mount)
 			MountDirs+=($2)
 			shift 2 ;;
-		-T | --tcp-ports)
-			if [[ "$2" == *"-"* ]]
+		-T | --tcp-port)
+			if [[ "$2" == *":"* ]]
 			then
-				IFS=- read VPORT HPORT <<< "$2"
+				IFS=: read VPORT HPORT <<< "$2"
 				[[ $HPORT =~ ^[0-9]+$ ]] \
 					&& [[ $VPORT =~ ^[0-9]+$ ]] \
 					|| die "ERR-023: invalid number: -T $2"
@@ -214,10 +214,10 @@ do
 				TcpPorts+=($2)
 			fi
 			shift 2 ;;
-		-U | --udp-ports)
-			if [[ "$2" == *"-"* ]]
+		-U | --udp-port)
+			if [[ "$2" == *":"* ]]
 			then
-				IFS=- read VPORT HPORT <<< "$2"
+				IFS=: read VPORT HPORT <<< "$2"
 				[[ $HPORT =~ ^[0-9]+$ ]] \
 					&& [[ $VPORT =~ ^[0-9]+$ ]] \
 					|| die "ERR-026: invalid number: -U $2"
@@ -231,7 +231,7 @@ do
 		-D | --display)
 			QemuDisplay=$2
 			shift 2 ;;
-		-Q | --qemu-parameters)
+		-Q | --qemu-parameter)
 			QemuParameters+=("$2")
 			shift 2 ;;
 		-t | --timeout)
@@ -420,12 +420,12 @@ do
 		Size=${Arg#*=}
 		if [ -f "$Filename" ]
 		then
-			SizeInArg=$(numfmt --from=iec $Size)
-			SizeInFile=$(qemu-img info $Filename | grep "^virtual size:" \
-				| sed -E 's/.*\(([0-9]+) bytes\).*/\1/')
+			SizeInArg="$(numfmt --from=iec ${Size^^})"
+			SizeInFile="$(qemu-img info $Filename | grep "^virtual size:" \
+				| sed -E 's/.*\(([0-9]+) bytes\).*/\1/')"
 			[ "$SizeInArg" = "$SizeInFile" ] \
 				|| echo "Warning: specified size for \"$Filename\" \
-atches"
+mismatches"
 		else
 			qemu-img create -qf qcow2 $Filename $Size
 		fi
