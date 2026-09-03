@@ -39,54 +39,78 @@ OPTIONS
 	elif [ "$2" = run ]
 	then
 		printf "daiker run — %s
+
 SYNOPSIS
-    daiker run [options]... [file]... [file=size]... [file:backing]...
+    daiker run [OPTIONS]... [FILE]... [FILE=SIZE]... [FILE:BACKING]...
+
+DESCRIPTION
+    Run a virtual machine using one or more qcow2 disk images.
+    A disk image can be specified in one of three forms:
+    FILE
+        Use an existing qcow2 image.
+    FILE=SIZE
+        Create a new qcow2 image of the specified size.
+    FILE:BACKING
+        Create a qcow2 overlay backed by the specified image.
+
 EXAMPLES
-    ####### Installation with Ubuntu Iso #######
-    daiker run -i ubuntu-18.04.5-live-server-amd64.iso ubuntu18.qcow2=50G
-    daiker run overlay.qcow2:ubuntu18.qcow2
-    daiker run -T 22 -T 80 overlay.qcow2
-    #### Cloud image with Rocky Cloud Image ####
-    wget https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
-    sudo virt-customize -a Rocky-9-GenericCloud-Base.latest.x86_64.qcow2 \\
-        --root-password password:daiker
-    daiker run overlay.qcow2:Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
-    ########### Netboot with Alpine ############
-    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
-    wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
-    daiker run -Q '-kernel vmlinuz-virt' -Q '-initrd initramfs-virt' -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/edge/main'\$\'\\\t\''modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt'
+    Installation with Ubuntu Is
+        daiker run -i ubuntu-18.04.5-live-server-amd64.iso ubuntu18.qcow2=50G
+        daiker run overlay.qcow2:ubuntu18.qcow2
+    Forward host TCP ports to the VM
+        daiker run -T 22 -T 80 overlay.qcow2
+    Cloud image with Rocky Linux
+        wget https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+        sudo virt-customize -a Rocky-9-GenericCloud-Base.latest.x86_64.qcow2 \\
+            --root-password password:daiker
+        daiker run overlay.qcow2:Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+    Netboot with Alpine Linux
+        wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/vmlinuz-virt
+        wget https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/initramfs-virt
+        daiker run \\
+            -Q '-kernel vmlinuz-virt' \\
+            -Q '-initrd initramfs-virt' \\
+            -Q '-append alpine_repo=https://dl-cdn.alpinelinux.org/alpine/edge/main'\$\'\\\t\''modloop=https://dl-cdn.alpinelinux.org/alpine/edge/releases/x86_64/netboot/modloop-virt'
+
 OPTIONS
     -c, --cpu=CPU
         Number of CPUs (default: 2)
     -r, --ramsize=RAMSIZE
-        Memory size in GB (default: 4)
+        Memory size (default: 4G)
+    -M, --machine=MACHINE
+        Emulated machine (default: QEMU's default machine type)
     -i, --iso=FILE
-        ISO file to use as as the CD-ROM
+        ISO file to use as the CD-ROM
     -d, --disable-public-net
         Disable public networking. The VM will not have Internet access.
     -e, --enable-private-net=random|11:22:33
-        Add a NIC with a specfic or random MAC address to share a private
-        network with other VMs using this option. The MAC address will be
-        prefixed with '52:54:00'.
-    -M, --mount=DIR
-        Mount one or more host directories inside the VM. Example:
+        Add a NIC with a random or specified MAC address. The MAC address is
+        prefixed with '52:54:00'. VMs using this option can communicate with
+        each other over the private network.
+    -u, --uefi
+        Use UEFI firmware
+    -p, --mount=DIR
+        Mount a host directory inside the VM using virtio-9p.
+        For example, to mount the first directory specified with -p:
             mount -t 9p -o msize=1048576 daiker-0 /mnt
-        where 'daiker-0' refers to the first -M option.
-        Note: Default CentOS and Windows images may not support this
-        feature.
+        Multiple -p options can be specified. The names daiker-0, daiker-1, etc.
+        refer to the directories in the order they were specified.
+        Note: Default CentOS and Windows images may not support this feature.
     -T, --tcp-port=VMPORT|VMPORT:HOSTPORT
-        Forward TCP port HOSTPORT on the host to VMPORT on the VM
+        Forward a random or specified TCP port from the host to VMPORT on the VM
     -U, --udp-port=VMPORT|VMPORT:HOSTPORT
-        Forward UDP port HOSTPORT on the host to VMPORT on the VM
+        Forward a random or specified UDP port from the host to VMPORT on the VM
     -D, --display=gtk|vnc|[VncDisplayNum]|none|nographic
-        Default: gtk (requires X server)
+        Select the display type (default: gtk if X server is available, or VNC)
     -Q, --qemu-parameter=PARAMS
-        Additional QEMU parameter (can be used multiple times).
-        Example:
-          sudo chown \$USER /dev/bus/usb/003/006
-          daiker run -Q \\
-            \"-device usb-ehci,id=ehci -device usb-host,hostbus=3,hostaddr=6\" \\
-            test.qcow2
+        Pass additional parameters to QEMU
+        For example, to attach a USB device:
+            sudo chown \$USER /dev/bus/usb/003/006
+            daiker run \\
+                -Q \"-usb -device usb-tablet\" \\
+                -Q \"-device usb-ehci,id=ehci\" \\
+                -Q \"-device usb-host,hostbus=3,hostaddr=6\" \\
+                test.qcow2
 %s\n" "$UsageRun" "$Copyright"
 	elif [ "$2" = inspect ]
 	then
@@ -128,7 +152,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260805
+	die 20260904
 }
 
 [ $# -gt 0 ] || die
@@ -137,9 +161,9 @@ Command=$1
 shift || die
 if [ "$Command" = "run" ]
 then
-	OptShort="hvc:r:i:de:M:T:U:D:Q:"
-	OptLong="help,version,cpu:,ram:,iso:,disable-public-net,enable-private-net:\
-,mount:,tcp-port:,udp-port:display:,qemu-parameter"
+	OptShort="hvc:r:M:i:de:up:T:U:D:Q:"
+	OptLong="help,version,cpu:,ram:,machine:,iso:,disable-public-net\
+,enable-private-net:,uefi,mount:,tcp-port:,udp-port:display:,qemu-parameter"
 	OPTS=$(getopt -o $OptShort --long "$OptLong" -n daiker -- "$@")
 elif [ "$Command" = "inspect" ]
 then
@@ -154,9 +178,10 @@ else
 	die "ERR-001: unsupported daiker command"
 fi
 Cpu=2
+RamSize=4G
+Machine=""
 Iso=""
-RamSize=4
-Vnc=no
+Uefi=""
 EnablePrivateNets=()
 DisablePublicNet=""
 MountDirs=()
@@ -184,12 +209,16 @@ do
 			Cpu=$2
 			shift 2 ;;
 		-r | --ramsize)
-			[[ $2 =~ ^[0-9]+$ ]] \
+			numfmt --from=iec $2 > /dev/null \
 				|| die "ERR-022: invalid number: -r $2"
 			RamSize=$2
 			shift 2 ;;
+		-M | --machine)
+			Machine="-M $2"
+			shift 2 ;;
 		-i | --iso)
-			Iso=$2
+			[ -f "$2" ] || die "ERR-008: no such iso file $2"
+			Iso="-cdrom $2"
 			shift 2 ;;
 		-d | --disable-public-net)
 			DisablePublicNet=YES
@@ -197,7 +226,22 @@ do
 		-e | --enable-private-net)
 			EnablePrivateNets+=($2)
 			shift 2 ;;
-		-M | --mount)
+		-u | --uefi)
+			Ovmfs=(
+				/usr/share/edk2/ovmf/OVMF_CODE.fd # Rhel
+				/usr/share/edk2/x64/OVMF_CODE.4m.fd # Arch
+				/usr/share/ovmf/OVMF.fd # Debian, Ubuntu
+				/usr/share/qemu/ovmf-x86_64.bin # Suse
+			)
+			for F in ${Ovmfs[@]}
+			do
+				[ -f "$F" ] || continue
+				Uefi="-drive if=pflash,format=raw,readonly=on,file=$F"
+				break
+			done
+			[ -n "$Uefi" ] || die "ERR-011: missing OVMF package"
+			shift ;;
+		-p | --mount)
 			MountDirs+=($2)
 			shift 2 ;;
 		-T | --tcp-port)
@@ -396,9 +440,7 @@ elif [ "$QemuDisplay" = "nographic" ]
 then
 	QemuDisplay="-nographic"
 else
-	set +e
-	let Vnc="$QemuDisplay" 2> /dev/null
-	set -e
+	let Vnc="$QemuDisplay" 2> /dev/null || :
 	[ "$Vnc" = "$QemuDisplay" ] \
 		|| die "ERR-018: -D should be gtk/vnc/none/nographic or a Vnc number"
 	QemuDisplay="-display vnc=:$Vnc"
@@ -406,11 +448,6 @@ fi
 if [ "$DisablePublicNet" = "YES" ]
 then
 	PubNet=""
-fi
-if [ -n "$Iso" ]
-then
-	[ -f "$Iso" ] || die "ERR-008: no such iso file $Iso"
-	Iso="-cdrom $Iso"
 fi
 Drives=""
 for Arg in "$@"
@@ -466,6 +503,6 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) \
 	|| QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" \
 	|| die "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
 IFS=$' '
-$QemuBin -name $Name -cpu host -enable-kvm -usb -device usb-tablet \
-	-smp $Cpu -m ${RamSize}G $Drives $Iso $PrvNet $PubNet $Mounts $QemuDisplay \
+$QemuBin -cpu host -enable-kvm -name $Name -smp $Cpu -m $RamSize \
+	$Machine $Uefi $Drives $Iso $PrvNet $PubNet $Mounts $QemuDisplay \
 	${QemuParameters[@]}
