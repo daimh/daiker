@@ -1,16 +1,18 @@
 # daiker — a tiny but powerful virtual machine tool
 
-**daiker** is a lightweight wrapper around QEMU/KVM that makes it easy to 
-create, run, and manage virtual machines — without needing root privileges 
-(beyond loading the KVM module).
+**daiker** is a lightweight command-line tool for running virtual machines with
+QEMU/KVM. The VM runs as a single process with no daemon, database, or VM
+management service. It provides a simple interface for common VM operations
+while giving you direct access to QEMU when you need it.
 
-- Unlike **Docker**, it requires no special privileges. A regular Linux 
-user account (with or without X) is sufficient.
+Why daiker?
 
-- Unlike **Singularity/Apptainer**, it provides **full hardware 
-virtualization**. You can even run Windows on it.
+- Tiny — a single executable with minimal dependencies.
+- Simple — common VM operations require only a few options.
+- Unprivileged — runs as a regular Linux user.
+- Flexible — pass arbitrary QEMU options with -Q.
+- Lightweight — no daemon, database, or VM management service.
 
----
 
 ## Prerequisites
 
@@ -32,7 +34,7 @@ which qemu-system-x86_64 || ls /usr/libexec/qemu-kvm
 ```bash
 wget https://raw.githubusercontent.com/daimh/daiker/master/daiker
 chmod +x daiker
-mv daiker ~/bin/ # or any directory in your $PATH
+mv daiker ~/bin/ 
 ```
 
 ## Quick Start
@@ -43,12 +45,8 @@ mv daiker ~/bin/ # or any directory in your $PATH
 # Download the ISO:
 wget https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/alpine-standard-3.23.3-x86_64.iso
 
-# Build base image (Non-RHEL systems)
-daiker build -i alpine-standard-3.23.3-x86_64.iso base.qcow2 
-
-# on RHEL-based systems (use VNC):
-daiker build -i alpine-standard-3.23.3-x86_64.iso base.qcow2 -D 99 &
-vncviewer :99
+# Build base image
+daiker build -i alpine-standard-3.23.3-x86_64.iso base.qcow2=1G
 ```
 
 Inside the VM:
@@ -63,7 +61,7 @@ Inside the VM:
 ### 2. Create overlay image.
 
 ```bash
-daiker run -b base.qcow2 overlay.qcow2 
+daiker run overlay.qcow2:base.qcow2
 ```
 
 3. Re-run the VM 
@@ -96,7 +94,7 @@ daiker run -T 22-2299 -T 3389-3399 -D 99 test1.qcow2
 - Mount host directory into guest VM
 
 ```bash
-daiker run -M /tmp test1.qcow2 
+daiker run -p /tmp test1.qcow2 
 # #inside the guest machine
 # mount -t 9p daiker-0 /mnt
 ```

@@ -55,8 +55,8 @@ DESCRIPTION
 
 EXAMPLES
     Installation with Ubuntu Is
-        daiker run -i ubuntu-18.04.5-live-server-amd64.iso ubuntu18.qcow2=50G
-        daiker run overlay.qcow2:ubuntu18.qcow2
+        daiker run -i ubuntu-26.04.1-live-server-amd64.iso ubuntu.qcow2=50G
+        daiker run overlay.qcow2:ubuntu.qcow2
     Forward host TCP ports to the VM
         daiker run -T 22 -T 80 overlay.qcow2
     Cloud image with Rocky Linux
@@ -89,7 +89,7 @@ OPTIONS
         each other over the private network.
     -u, --uefi
         Use UEFI firmware
-    -p, --mount=DIR
+    -p, --mount=HOSTDIR
         Mount a host directory inside the VM using virtio-9p.
         For example, to mount the first directory specified with -p:
             mount -t 9p -o msize=1048576 daiker-0 /mnt
@@ -385,7 +385,7 @@ for ((Idx=0; Idx<${#MountDirs[@]}; Idx++))
 do
 	[ -d ${MountDirs[$Idx]} ] || die "ERR-020: no such dir ${MountDirs[$Idx]}"
 	Mounts="$Mounts -virtfs local,id=daiker-$Idx,path=${MountDirs[$Idx]},\
-		security_model=none,multidevs=remap,mount_tag=daiker-$Idx"
+security_model=none,multidevs=remap,mount_tag=daiker-$Idx"
 done
 for ((i=0; i<${#EnablePrivateNets[@]}; i++))
 do
