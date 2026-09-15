@@ -152,7 +152,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260904
+	die 20260915
 }
 
 [ $# -gt 0 ] || die
@@ -312,7 +312,7 @@ increasing it with the -t."
 		fi
 		Running=$( fuser $Filename 2>&1 | cut -d : -f 2- || : )
 		printf "%s\t%s\t%s\n" "$Backing" "$Filename" "$Running"
-	done | sort -u | python -c '
+	done | sort -u | python3 -c '
 import sys
 
 
