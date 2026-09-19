@@ -136,8 +136,8 @@ function get_free_ports {
 	export LC_ALL=C
 	sleep 0.$(($RANDOM%10))
 	join -v 1 <(seq $2 $3) \
-		<(ss -4ln${1:0:1} |tail -n +2 |awk '{print $4}' |cut -d : -f 2 |sort) \
-		| shuf | head -n $4
+		<(ss -4an${1:0:1} |tail -n +2 |awk '{print $4}' |cut -d : -f 2 |sort) \
+		| head -n $4
 }
 
 function get_hostfwd {
@@ -152,7 +152,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260915
+	die 20260920
 }
 
 [ $# -gt 0 ] || die
@@ -188,7 +188,7 @@ MountDirs=()
 TcpPorts=()
 UdpPorts=()
 PrvNet=""
-PubNet="-device virtio-net-pci,netdev=n9 -netdev user,id=n9"
+PubNet="-device virtio-net-pci,netdev=np -netdev user,id=np"
 [ -z ${DISPLAY+x} ] && QemuDisplay=vnc || QemuDisplay=gtk
 QemuParameters=()
 Timeout=10
@@ -504,5 +504,5 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) \
 	|| die "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
 IFS=$' '
 $QemuBin -cpu host -enable-kvm -name $Name -smp $Cpu -m $RamSize \
-	$Machine $Uefi $Drives $Iso $PrvNet $PubNet $Mounts $QemuDisplay \
+	$Machine $Uefi $Drives $Iso $PubNet $PrvNet $Mounts $QemuDisplay \
 	${QemuParameters[@]}
