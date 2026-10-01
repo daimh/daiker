@@ -133,11 +133,27 @@ OPTIONS
 
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && die "ERR-015: contact developer"
-	export LC_ALL=C
-	sleep 0.$(($RANDOM%10))
-	join -v 1 <(seq $2 $3) \
-		<(ss -4an${1:0:1} |tail -n +2 |awk '{print $4}' |cut -d : -f 2 |sort) \
-		| head -n $4
+	(
+		flock 9 || exit 1
+		export LC_ALL=C
+		join -v 1 \
+			<(seq $2 $3) \
+			<(ss -4an${1:0:1} \
+				| tail -n +2 \
+				| awk '{print $4}' \
+				| cut -d : -f 2 \
+				| sort \
+			) \
+			| head -n $4 \
+			| tee /tmp/daiker.port \
+			|| :
+		ChkPort=$(head -n 1 /tmp/daiker.port)
+		for ((i=0; i<60; i++))
+		do
+			! fuser $ChkPort/$1 || break
+			sleep 1
+		done &> /dev/null &
+	) 9> /tmp/daiker.lock
 }
 
 function get_hostfwd {
@@ -152,7 +168,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20260920
+	die 20261002
 }
 
 [ $# -gt 0 ] || die
@@ -379,7 +395,58 @@ if __name__ == "__main__":
 fi
 [ "$Command" = "run" ] \
 	|| die "ERR-002: run 'daiker $Command -h/--help'"
+
 Name=""
+Drives=""
+for Arg in "$@"
+do
+	if [[ "$Arg" == *"="* ]]; then
+		Filename=${Arg%%=*}
+		Size=${Arg#*=}
+		if [ -f "$Filename" ]
+		then
+			SizeInArg="$(numfmt --from=iec ${Size^^})"
+			SizeInFile="$(qemu-img info $Filename | grep "^virtual size:" \
+				| sed -E 's/.*\(([0-9]+) bytes\).*/\1/')"
+			[ "$SizeInArg" = "$SizeInFile" ] \
+				|| echo "Warning: specified size for \"$Filename\" \
+mismatches"
+		else
+			qemu-img create -qf qcow2 $Filename $Size
+		fi
+	elif [[ "$Arg" == *":"* ]]; then
+		Filename=${Arg%%:*}
+		Backing=${Arg#*:}
+		[ -f "$Backing" ] || die "ERR-019: no such a backing image $Backing"
+		Dirname=$(dirname $Filename)
+		[ -d $Dirname ] || die "ERR-029: no such directory $Dirname"
+		Backing=$(realpath --relative-to=$Dirname $Backing)
+		if [ ! -f "$Filename" ]
+		then
+			qemu-img create -qf qcow2 -b "$Backing" -F qcow2 $Filename
+		elif [ "$Backing" != \
+			"$(qemu-img info "$Filename" | grep "^backing file:" \
+				| cut -d " " -f 3 )" \
+		]
+		then
+			die "ERR-010: The specified backing image for \"$Filename\" is \
+\"$Backing\", but command \"qemu-img info $Filename\" reports a differnt \
+backing image."
+		fi
+		[ ! -w $Backing ] \
+			|| chmod a-w $Backing \
+			|| echo "Warning: Could not set $Backing to read-only. Continuing."
+	elif [ -f "$Arg" ]
+	then
+		Filename=$Arg
+	else
+		die "ERR-034: no such a file \"$Arg\""
+	fi
+	Drives="$Drives -drive file=$Filename,format=qcow2"
+	[ -n "$Name" ] || Name=$Filename
+done
+[ -s "$Name" ] || Name=NULL
+
 Mounts=""
 for ((Idx=0; Idx<${#MountDirs[@]}; Idx++))
 do
@@ -449,55 +516,6 @@ if [ "$DisablePublicNet" = "YES" ]
 then
 	PubNet=""
 fi
-Drives=""
-for Arg in "$@"
-do
-	if [[ "$Arg" == *"="* ]]; then
-		Filename=${Arg%%=*}
-		Size=${Arg#*=}
-		if [ -f "$Filename" ]
-		then
-			SizeInArg="$(numfmt --from=iec ${Size^^})"
-			SizeInFile="$(qemu-img info $Filename | grep "^virtual size:" \
-				| sed -E 's/.*\(([0-9]+) bytes\).*/\1/')"
-			[ "$SizeInArg" = "$SizeInFile" ] \
-				|| echo "Warning: specified size for \"$Filename\" \
-mismatches"
-		else
-			qemu-img create -qf qcow2 $Filename $Size
-		fi
-	elif [[ "$Arg" == *":"* ]]; then
-		Filename=${Arg%%:*}
-		Backing=${Arg#*:}
-		[ -f "$Backing" ] || die "ERR-019: no such a backing image $Backing"
-		Dirname=$(dirname $Filename)
-		[ -d $Dirname ] || die "ERR-029: no such directory $Dirname"
-		Backing=$(realpath --relative-to=$Dirname $Backing)
-		if [ ! -f "$Filename" ]
-		then
-			qemu-img create -qf qcow2 -b "$Backing" -F qcow2 $Filename
-		elif [ "$Backing" != \
-			"$(qemu-img info "$Filename" | grep "^backing file:" \
-				| cut -d " " -f 3 )" \
-		]
-		then
-			die "ERR-010: The specified backing image for \"$Filename\" is \
-\"$Backing\", but command \"qemu-img info $Filename\" reports a differnt \
-backing image."
-		fi
-		[ ! -w $Backing ] \
-			|| chmod a-w $Backing \
-			|| echo "Warning: Could not set $Backing to read-only. Continuing."
-	elif [ -f "$Arg" ]
-	then
-		Filename=$Arg
-	else
-		die "ERR-034: no such a file \"$Arg\""
-	fi
-	[ -n "$Name" ] || Name=$Filename
-	Drives="$Drives -drive file=$Filename,format=qcow2"
-done
-[ -s "$Name" ] || Name=NULL
 QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) \
 	|| QemuBin="$(command -v qemu-kvm 2>/dev/null)" \
 	|| QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" \
