@@ -131,29 +131,29 @@ OPTIONS
 		|| kill 0
 }
 
+exec 123>/tmp/daiker.lock
 function get_free_ports {
 	[ "$1" != "tcp" -a "$1" != "udp" ] && die "ERR-015: contact developer"
-	(
-		flock 9 || exit 1
-		export LC_ALL=C
-		join -v 1 \
-			<(seq $2 $3) \
-			<(ss -4an${1:0:1} \
-				| tail -n +2 \
-				| awk '{print $4}' \
-				| cut -d : -f 2 \
-				| sort \
-			) \
-			| head -n $4 \
-			| tee /tmp/daiker.port \
-			|| :
-		ChkPort=$(head -n 1 /tmp/daiker.port)
-		for ((i=0; i<60; i++))
-		do
-			! fuser $ChkPort/$1 || break
-			sleep 1
-		done &> /dev/null &
-	) 9> /tmp/daiker.lock
+	flock -x 123 || die "ERR-003: failed to flock /tmp/daiker.lock"
+	join -v 1 \
+		<(seq $2 $3) \
+		<(ss -4an${1:0:1} \
+			| tail -n +2 \
+			| awk '{print $4}' \
+			| cut -d : -f 2 \
+			| sort \
+		) \
+		| head -n $4 \
+		| {
+			read -r ChkPort
+			echo $ChkPort
+			cat
+			for ((i=0; i<10; i++))
+			do
+				! fuser $ChkPort/$1 || break
+				sleep 1
+			done &> /dev/null &
+		} || :
 }
 
 function get_hostfwd {
@@ -168,7 +168,7 @@ function get_hostfwd {
 }
 
 function version {
-	die 20261002
+	die 20261005
 }
 
 [ $# -gt 0 ] || die
@@ -520,6 +520,7 @@ QemuBin=$(command -v qemu-system-x86_64 2>/dev/null) \
 	|| QemuBin="$(command -v qemu-kvm 2>/dev/null)" \
 	|| QemuBin="$(command -v /usr/libexec/qemu-kvm 2>/dev/null)" \
 	|| die "ERR-031: qemu-system-x86_64 or qemu-kvm is missing"
+exec 123>&-
 IFS=$' '
 $QemuBin -cpu host -enable-kvm -name $Name -smp $Cpu -m $RamSize \
 	$Machine $Uefi $Drives $Iso $PubNet $PrvNet $Mounts $QemuDisplay \
